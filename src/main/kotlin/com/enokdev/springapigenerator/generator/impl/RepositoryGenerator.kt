@@ -62,38 +62,29 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator("Repository.java.ft") 
     }
 
     /**
-     * Generate custom query methods based on entity fields.
+     * Generate custom query methods for searchable fields.
      */
     private fun generateCustomQueryMethods(entityMetadata: EntityMetadata): String {
         val methods = StringBuilder()
 
-        // Generate findBy methods for common fields (e.g., name, email, code)
         entityMetadata.fields.forEach { field ->
-            // Skip ID field and collection fields
-            if (field.name != "id" && !field.isCollection) {
-                // Generate common find methods for string fields
-                if (field.simpleTypeName == "String") {
-                    if (field.name.equals("name", ignoreCase = true) ||
-                        field.name.equals("code", ignoreCase = true) ||
-                        field.name.equals("email", ignoreCase = true) ||
-                        field.name.equals("username", ignoreCase = true)
-                    ) {
-                        val methodName = "findBy${field.name.capitalize()}"
-                        methods.append("    ${entityMetadata.className} $methodName(${field.simpleTypeName} ${field.name});\n\n")
+            if (!field.isCollection && field.name != "id") {
+                when (field.simpleTypeName) {
+                    "String" -> {
+                        // Pour les champs String, générer des méthodes findBy et findByContains
+                        val methodName = "findBy${field.name.replaceFirstChar { it.uppercase() }}"
+                        methods.append("    List<${entityMetadata.className}> $methodName(${field.simpleTypeName} ${field.name});\n\n")
 
-                        if (field.name.equals("name", ignoreCase = true) ||
-                            field.name.equals("code", ignoreCase = true)
-                        ) {
-                            methods.append("    List<${entityMetadata.className}> findBy${field.name.capitalize()}Contains(${field.simpleTypeName} ${field.name});\n\n")
-                        }
+                        // Méthode de recherche par contenu
+                        methods.append("    List<${entityMetadata.className}> findBy${field.name.replaceFirstChar { it.uppercase() }}Contains(${field.simpleTypeName} ${field.name});\n\n")
+                    }
+                    // Autres types de champs pourraient avoir des requêtes spécifiques
+                    else -> {
+                        // Pour les autres types, générer une méthode findBy simple
+                        methods.append("    List<${entityMetadata.className}> findBy${field.name.replaceFirstChar { it.uppercase() }}(${field.simpleTypeName} ${field.name});\n\n")
                     }
                 }
             }
-        }
-
-        // If we added methods, add the List import
-        if (methods.isNotEmpty()) {
-            methods.insert(0, "import java.util.List;\n\n")
         }
 
         return methods.toString()

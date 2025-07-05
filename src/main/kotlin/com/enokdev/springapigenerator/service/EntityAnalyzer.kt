@@ -4,7 +4,6 @@ import com.enokdev.springapigenerator.model.EntityField
 import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.model.RelationType
 import com.intellij.psi.*
-import com.intellij.psi.util.PsiUtil
 
 /**
  * Service for analyzing JPA entity structure.
@@ -105,7 +104,7 @@ class EntityAnalyzer {
                !method.hasModifierProperty(PsiModifier.STATIC) &&
                method.parameterList.parametersCount == 0 &&
                method.returnType != null &&
-               method.returnType != PsiType.VOID
+               method.returnType != PsiTypes.voidType()  // Utilisation de PsiTypes.voidType() au lieu de PsiType.VOID
     }
 
     /**

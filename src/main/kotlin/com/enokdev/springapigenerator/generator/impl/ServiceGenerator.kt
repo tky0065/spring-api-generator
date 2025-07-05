@@ -94,7 +94,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                     field.name.equals("email", ignoreCase = true) ||
                     field.name.equals("username", ignoreCase = true))
                 ) {
-                    val methodName = "findBy${field.name.capitalize()}"
+                    val methodName = "findBy${field.name.replaceFirstChar { it.uppercase() }}"
                     methods.append("""
                         /**
                          * Find a ${entityMetadata.entityNameLower} by ${field.name}.
@@ -127,7 +127,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                          * @param relationId the id of the ${relationTargetName} to add
                          * @return the updated entity
                          */
-                        ${entityMetadata.dtoName} add${relationName.capitalize()}($idType id, $idType relationId);
+                        ${entityMetadata.dtoName} add${relationName.replaceFirstChar { it.uppercase() }}($idType id, $idType relationId);
                         
                     """.trimIndent())
                     methods.append("\n")
@@ -141,7 +141,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                          * @param relationId the id of the ${relationTargetName} to remove
                          * @return the updated entity
                          */
-                        ${entityMetadata.dtoName} remove${relationName.capitalize()}($idType id, $idType relationId);
+                        ${entityMetadata.dtoName} remove${relationName.replaceFirstChar { it.uppercase() }}($idType id, $idType relationId);
                         
                     """.trimIndent())
                     methods.append("\n")
@@ -161,7 +161,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                          * @param relationId the id of the ${relationTargetName} to set
                          * @return the updated entity
                          */
-                        ${entityMetadata.dtoName} set${relationName.capitalize()}($idType id, $idType relationId);
+                        ${entityMetadata.dtoName} set${relationName.replaceFirstChar { it.uppercase() }}($idType id, $idType relationId);
                         
                     """.trimIndent())
                     methods.append("\n")
@@ -174,7 +174,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                          * @param id the id of the ${entityMetadata.entityNameLower}
                          * @return the updated entity
                          */
-                        ${entityMetadata.dtoName} remove${relationName.capitalize()}($idType id);
+                        ${entityMetadata.dtoName} remove${relationName.replaceFirstChar { it.uppercase() }}($idType id);
                         
                     """.trimIndent())
                     methods.append("\n")
@@ -261,7 +261,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                         field.name.equals("email", ignoreCase = true) ||
                         field.name.equals("username", ignoreCase = true))
                     ) {
-                        val methodName = "findBy${field.name.capitalize()}"
+                        val methodName = "findBy${field.name.replaceFirstChar { it.uppercase() }}"
                         methods.append("""
                             @Override
                             @Transactional(readOnly = true)
@@ -282,7 +282,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                     RelationType.ONE_TO_MANY, RelationType.MANY_TO_MANY -> {
                         val relationName = field.name
                         val relationTargetName = field.relationTargetSimpleName ?: "Object"
-                        val relationTargetField = relationTargetName.decapitalize()
+                        val relationTargetField = relationTargetName.replaceFirstChar { it.lowercase() }
                         val idType = entityMetadata.idType.substringAfterLast(".")
                         val entityNameLower = entityMetadata.entityNameLower
                         val entityName = entityMetadata.className
@@ -290,7 +290,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                         // Add related entity
                         methods.append("""
                             @Override
-                            public ${entityMetadata.dtoName} add${relationName.capitalize()}($idType id, $idType relationId) {
+                            public ${entityMetadata.dtoName} add${relationName.replaceFirstChar { it.uppercase() }}($idType id, $idType relationId) {
                                 log.debug("Request to add ${relationTargetName} {} to ${entityName} {}", relationId, id);
                                 
                                 ${entityName} ${entityNameLower} = ${entityNameLower}Repository.findById(id)
@@ -301,7 +301,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                                 ${relationTargetName} ${relationTargetField} = ${relationTargetField}Repository.findById(relationId)
                                     .orElseThrow(() -> new RuntimeException("${relationTargetName} not found with id " + relationId));
                                 
-                                ${entityNameLower}.get${relationName.capitalize()}().add(${relationTargetField});
+                                ${entityNameLower}.get${relationName.replaceFirstChar { it.uppercase() }}().add(${relationTargetField});
                                 ${entityNameLower} = ${entityNameLower}Repository.save(${entityNameLower});
                                 
                                 return ${entityNameLower}Mapper.toDto(${entityNameLower});
@@ -313,7 +313,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                         // Remove related entity
                         methods.append("""
                             @Override
-                            public ${entityMetadata.dtoName} remove${relationName.capitalize()}($idType id, $idType relationId) {
+                            public ${entityMetadata.dtoName} remove${relationName.replaceFirstChar { it.uppercase() }}($idType id, $idType relationId) {
                                 log.debug("Request to remove ${relationTargetName} {} from ${entityName} {}", relationId, id);
                                 
                                 ${entityName} ${entityNameLower} = ${entityNameLower}Repository.findById(id)
@@ -324,7 +324,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                                 ${relationTargetName} ${relationTargetField} = ${relationTargetField}Repository.findById(relationId)
                                     .orElseThrow(() -> new RuntimeException("${relationTargetName} not found with id " + relationId));
                                 
-                                ${entityNameLower}.get${relationName.capitalize()}().remove(${relationTargetField});
+                                ${entityNameLower}.get${relationName.replaceFirstChar { it.uppercase() }}().remove(${relationTargetField});
                                 ${entityNameLower} = ${entityNameLower}Repository.save(${entityNameLower});
                                 
                                 return ${entityNameLower}Mapper.toDto(${entityNameLower});
@@ -337,7 +337,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                     RelationType.MANY_TO_ONE, RelationType.ONE_TO_ONE -> {
                         val relationName = field.name
                         val relationTargetName = field.relationTargetSimpleName ?: "Object"
-                        val relationTargetField = relationTargetName.decapitalize()
+                        val relationTargetField = relationTargetName.replaceFirstChar { it.lowercase() }
                         val idType = entityMetadata.idType.substringAfterLast(".")
                         val entityNameLower = entityMetadata.entityNameLower
                         val entityName = entityMetadata.className
@@ -345,7 +345,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                         // Set related entity
                         methods.append("""
                             @Override
-                            public ${entityMetadata.dtoName} set${relationName.capitalize()}($idType id, $idType relationId) {
+                            public ${entityMetadata.dtoName} set${relationName.replaceFirstChar { it.uppercase() }}($idType id, $idType relationId) {
                                 log.debug("Request to set ${relationTargetName} {} for ${entityName} {}", relationId, id);
                                 
                                 ${entityName} ${entityNameLower} = ${entityNameLower}Repository.findById(id)
@@ -356,7 +356,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                                 ${relationTargetName} ${relationTargetField} = ${relationTargetField}Repository.findById(relationId)
                                     .orElseThrow(() -> new RuntimeException("${relationTargetName} not found with id " + relationId));
                                 
-                                ${entityNameLower}.set${relationName.capitalize()}(${relationTargetField});
+                                ${entityNameLower}.set${relationName.replaceFirstChar { it.uppercase() }}(${relationTargetField});
                                 ${entityNameLower} = ${entityNameLower}Repository.save(${entityNameLower});
                                 
                                 return ${entityNameLower}Mapper.toDto(${entityNameLower});
@@ -368,13 +368,13 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
                         // Remove related entity
                         methods.append("""
                             @Override
-                            public ${entityMetadata.dtoName} remove${relationName.capitalize()}($idType id) {
+                            public ${entityMetadata.dtoName} remove${relationName.replaceFirstChar { it.uppercase() }}($idType id) {
                                 log.debug("Request to remove ${relationTargetName} from ${entityName} {}", id);
                                 
                                 ${entityName} ${entityNameLower} = ${entityNameLower}Repository.findById(id)
                                     .orElseThrow(() -> new RuntimeException("${entityName} not found with id " + id));
                                 
-                                ${entityNameLower}.set${relationName.capitalize()}(null);
+                                ${entityNameLower}.set${relationName.replaceFirstChar { it.uppercase() }}(null);
                                 ${entityNameLower} = ${entityNameLower}Repository.save(${entityNameLower});
                                 
                                 return ${entityNameLower}Mapper.toDto(${entityNameLower});

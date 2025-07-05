@@ -14,44 +14,59 @@ repositories {
     }
 }
 
-// Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
-        create("IC", "2025.1")
+        create("IC", "2025.1")                          // compile + runIde using 2025.1
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
-        // Add necessary plugin dependencies for compilation here
-        bundledPlugin("com.intellij.java")
+        bundledPlugin("com.intellij.java")              // require Java support at runtime
     }
 
-    // FreeMarker templating engine
     implementation("org.freemarker:freemarker:2.3.32")
 
-    // Add test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
 }
 
 intellijPlatform {
     pluginConfiguration {
+        // Patch plugin.xml for compatibility metadata
         ideaVersion {
-            sinceBuild = "251"
+            sinceBuild.set("242")                     // supports 2025.1+ (builds starting with 251)
+            // untilBuild is unset → compatible with all future builds :contentReference[oaicite:1]{index=1}
+            untilBuild.set(provider { null })
         }
+        changeNotes.set("""
+            Initial version
+        """.trimIndent())
+    }
 
-        changeNotes = """
-      Initial version
-    """.trimIndent()
+    // Configuration pour la publication du plugin
+    publishing {
+        // Utiliser le token depuis gradle.properties ou variable d'environnement
+        token.set(System.getenv("INTELLIJ_PUBLISH_TOKEN") ?: findProperty("intellijPublishToken")?.toString() ?: "")
+
+        // Publier dans le canal stable
+        channels.set(listOf("stable"))
+
+        // Version du plugin qui sera affichée sur le marketplace
+        //version.set(project.version.toString())
     }
 }
 
 tasks {
-    // Set the JVM compatibility versions
     withType<JavaCompile> {
         sourceCompatibility = "21"
         targetCompatibility = "21"
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         kotlinOptions.jvmTarget = "21"
+    }
+
+    // Tâche pour nettoyer le cache Gradle en cas de problème
+    register<Delete>("cleanGradleCache") {
+        delete(fileTree("${System.getProperty("user.home")}/.gradle/caches/"))
+        group = "build"
+        description = "Clean Gradle cache to resolve strange errors"
     }
 }

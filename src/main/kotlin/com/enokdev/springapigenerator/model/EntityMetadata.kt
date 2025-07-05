@@ -12,7 +12,7 @@ data class EntityMetadata(
     val tableName: String,
 
     // Derived properties for code generation
-    val entityNameLower: String = className.decapitalize(),
+    val entityNameLower: String = className.replaceFirstChar { it.lowercase() },
     val dtoName: String = "${className}DTO",
     val repositoryName: String = "${className}Repository",
     val serviceName: String = "${className}Service",
@@ -34,6 +34,5 @@ data class EntityMetadata(
  * Extension function to make first character lowercase.
  */
 fun String.decapitalize(): String {
-    if (isEmpty() || !first().isUpperCase()) return this
-    return first().lowercase() + substring(1)
+    return this.replaceFirstChar { it.lowercase() }
 }

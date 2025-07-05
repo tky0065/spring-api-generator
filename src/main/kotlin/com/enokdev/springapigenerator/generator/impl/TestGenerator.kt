@@ -106,7 +106,7 @@ class TestGenerator : AbstractTemplateCodeGenerator("Test.java.ft") {
         entityMetadata.fields.forEach { field ->
             if (field.name != "id" && !field.isCollection) {
                 val fieldValue = getTestValueForType(field.simpleTypeName)
-                sb.appendLine("${entityNameLower}.set${field.name.capitalize()}($fieldValue);")
+                sb.appendLine("${entityNameLower}.set${field.name.replaceFirstChar { it.uppercase() }}($fieldValue);")
             }
         }
 
@@ -123,7 +123,7 @@ class TestGenerator : AbstractTemplateCodeGenerator("Test.java.ft") {
         entityMetadata.fields.forEach { field ->
             if (field.name != "id" && !field.isCollection) {
                 val fieldValue = getTestValueForType(field.simpleTypeName)
-                sb.appendLine("${entityNameLower}DTO.set${field.name.capitalize()}($fieldValue);")
+                sb.appendLine("${entityNameLower}DTO.set${field.name.replaceFirstChar { it.uppercase() }}($fieldValue);")
             }
         }
 

@@ -143,10 +143,10 @@ class RelationshipHandlerGenerator : AbstractTemplateCodeGenerator("Relationship
                          * @return the ResponseEntity with status 200 (OK) and the list of ${relationName}
                          */
                         @GetMapping("/{id}/${relationName}")
-                        public ResponseEntity<Set<${relationTargetName}DTO>> get${entityName}${relationName.capitalize()}(
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} id) {
+                        public ResponseEntity<Set<${relationTargetName}DTO>> get${entityName}${relationName.replaceFirstChar { it.uppercase() }}(
+                                @PathVariable ${entityMetadata.idType} id) {
                             ${entityName}DTO ${entityNameLower} = ${entityNameLower}Service.findOne(id);
-                            return ResponseEntity.ok(${entityNameLower}.get${relationName.capitalize()}());
+                            return ResponseEntity.ok(${entityNameLower}.get${relationName.replaceFirstChar { it.uppercase() }}());
                         }
                         
                     """.trimIndent())
@@ -161,10 +161,10 @@ class RelationshipHandlerGenerator : AbstractTemplateCodeGenerator("Relationship
                          * @return the ResponseEntity with status 200 (OK)
                          */
                         @PostMapping("/{id}/${relationName}/{relationId}")
-                        public ResponseEntity<Void> add${relationName.capitalize()}To${entityName}(
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} id,
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} relationId) {
-                            ${entityNameLower}Service.add${relationName.capitalize()}(id, relationId);
+                        public ResponseEntity<Void> add${relationName.replaceFirstChar { it.uppercase() }}To${entityName}(
+                                @PathVariable ${entityMetadata.idType} id,
+                                @PathVariable ${entityMetadata.idType} relationId) {
+                            ${entityNameLower}Service.add${relationName.replaceFirstChar { it.uppercase() }}(id, relationId);
                             return ResponseEntity.ok().build();
                         }
                         
@@ -180,10 +180,10 @@ class RelationshipHandlerGenerator : AbstractTemplateCodeGenerator("Relationship
                          * @return the ResponseEntity with status 200 (OK)
                          */
                         @DeleteMapping("/{id}/${relationName}/{relationId}")
-                        public ResponseEntity<Void> remove${relationName.capitalize()}From${entityName}(
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} id,
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} relationId) {
-                            ${entityNameLower}Service.remove${relationName.capitalize()}(id, relationId);
+                        public ResponseEntity<Void> remove${relationName.replaceFirstChar { it.uppercase() }}From${entityName}(
+                                @PathVariable ${entityMetadata.idType} id,
+                                @PathVariable ${entityMetadata.idType} relationId) {
+                            ${entityNameLower}Service.remove${relationName.replaceFirstChar { it.uppercase() }}(id, relationId);
                             return ResponseEntity.ok().build();
                         }
                         
@@ -203,15 +203,15 @@ class RelationshipHandlerGenerator : AbstractTemplateCodeGenerator("Relationship
                          * @return the ResponseEntity with status 200 (OK) and the ${relationName}
                          */
                         @GetMapping("/{id}/${relationName}")
-                        public ResponseEntity<${relationTargetName}DTO> get${entityName}${relationName.capitalize()}(
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} id) {
+                        public ResponseEntity<${relationTargetName}DTO> get${entityName}${relationName.replaceFirstChar { it.uppercase() }}(
+                                @PathVariable ${entityMetadata.idType} id) {
                             ${entityName}DTO ${entityNameLower} = ${entityNameLower}Service.findOne(id);
-                            return ResponseEntity.ok(${entityNameLower}.get${relationName.capitalize()}());
+                            return ResponseEntity.ok(${entityNameLower}.get${relationName.replaceFirstChar { it.uppercase() }}());
                         }
                         
                     """.trimIndent())
 
-                    // Set relationship - cette méthode doit appeler set${relationName.capitalize()}
+                    // Set relationship - cette méthode doit appeler set${relationName.replaceFirstChar { it.uppercase() }}
                     methods.append("""
                         /**
                          * PUT /api/${entityNameLower}s/{id}/${relationName}/{relationId} : Set the ${relationName} for a ${entityNameLower}.
@@ -221,16 +221,16 @@ class RelationshipHandlerGenerator : AbstractTemplateCodeGenerator("Relationship
                          * @return the ResponseEntity with status 200 (OK)
                          */
                         @PutMapping("/{id}/${relationName}/{relationId}")
-                        public ResponseEntity<Void> set${entityName}${relationName.capitalize()}(
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} id,
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} relationId) {
-                            ${entityNameLower}Service.set${relationName.capitalize()}(id, relationId);
+                        public ResponseEntity<Void> set${entityName}${relationName.replaceFirstChar { it.uppercase() }}(
+                                @PathVariable ${entityMetadata.idType} id,
+                                @PathVariable ${entityMetadata.idType} relationId) {
+                            ${entityNameLower}Service.set${relationName.replaceFirstChar { it.uppercase() }}(id, relationId);
                             return ResponseEntity.ok().build();
                         }
                         
                     """.trimIndent())
 
-                    // Remove relationship - cette méthode doit appeler remove${relationName.capitalize()}
+                    // Remove relationship - cette méthode doit appeler remove${relationName.replaceFirstChar { it.uppercase() }}
                     methods.append("""
                         /**
                          * DELETE /api/${entityNameLower}s/{id}/${relationName} : Remove the ${relationName} from a ${entityNameLower}.
@@ -239,9 +239,9 @@ class RelationshipHandlerGenerator : AbstractTemplateCodeGenerator("Relationship
                          * @return the ResponseEntity with status 200 (OK)
                          */
                         @DeleteMapping("/{id}/${relationName}")
-                        public ResponseEntity<Void> remove${entityName}${relationName.capitalize()}(
-                                @PathVariable ${entityMetadata.idType.substringAfterLast(".")} id) {
-                            ${entityNameLower}Service.remove${relationName.capitalize()}(id);
+                        public ResponseEntity<Void> remove${entityName}${relationName.replaceFirstChar { it.uppercase() }}(
+                                @PathVariable ${entityMetadata.idType} id) {
+                            ${entityNameLower}Service.remove${relationName.replaceFirstChar { it.uppercase() }}(id);
                             return ResponseEntity.ok().build();
                         }
                         

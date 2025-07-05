@@ -208,11 +208,13 @@ class GenerateSpringCodeAction : AnAction() {
 
                             // Generate Swagger configuration if needed
                             ReadAction.compute<Boolean, Throwable> {
-                                val hasSwaggerConfig = FilenameIndex.getFilesByName(
-                                    project,
+                                // Utilisation de getVirtualFilesByName avec les bons paramètres
+                                val hasSwaggerConfig = FilenameIndex.getVirtualFilesByName(
                                     "SwaggerConfig.java",
+                                    true, // caseSensitively
                                     GlobalSearchScope.projectScope(project)
                                 ).any()
+
                                 selectedComponents.contains("controller") && !hasSwaggerConfig
                             }.let { shouldGenerateSwagger ->
                                 if (shouldGenerateSwagger) {
@@ -227,11 +229,13 @@ class GenerateSpringCodeAction : AnAction() {
 
                             // Generate Global Exception Handler if needed
                             ReadAction.compute<Boolean, Throwable> {
-                                val hasExceptionHandler = FilenameIndex.getFilesByName(
-                                    project,
+                                // Utilisation de getVirtualFilesByName avec les bons paramètres
+                                val hasExceptionHandler = FilenameIndex.getVirtualFilesByName(
                                     "GlobalExceptionHandler.java",
+                                    true, // caseSensitively
                                     GlobalSearchScope.projectScope(project)
                                 ).any()
+
                                 selectedComponents.contains("controller") && !hasExceptionHandler
                             }.let { shouldGenerateExceptionHandler ->
                                 if (shouldGenerateExceptionHandler) {

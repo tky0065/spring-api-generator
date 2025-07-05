@@ -101,7 +101,7 @@ class ControllerGenerator : AbstractTemplateCodeGenerator("Controller.java.ft") 
                     field.name.equals("email", ignoreCase = true) ||
                     field.name.equals("username", ignoreCase = true))
                 ) {
-                    val methodName = "findBy${field.name.capitalize()}"
+                    val methodName = "findBy${field.name.replaceFirstChar { it.uppercase() }}"
                     val paramName = field.name
                     val entityNameLower = entityMetadata.entityNameLower
 
@@ -118,7 +118,7 @@ class ControllerGenerator : AbstractTemplateCodeGenerator("Controller.java.ft") 
                             @ApiResponse(responseCode = "200", description = "Found the ${entityNameLower}"),
                             @ApiResponse(responseCode = "404", description = "${entityNameLower} not found")
                         })
-                        public ResponseEntity<${entityMetadata.dtoName}> get${entityMetadata.className}By${field.name.capitalize()}(
+                        public ResponseEntity<${entityMetadata.dtoName}> get${entityMetadata.className}By${field.name.replaceFirstChar { it.uppercase() }}(
                                 @PathVariable ${field.simpleTypeName} ${paramName}) {
                             return ${entityNameLower}Service.${methodName}(${paramName})
                                 .map(ResponseEntity::ok)
