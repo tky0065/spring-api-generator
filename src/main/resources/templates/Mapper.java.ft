@@ -1,0 +1,43 @@
+package ${packageName}.mapper;
+
+import ${packageName}.domain.${entityName};
+import ${packageName}.dto.${entityName}DTO;
+import org.mapstruct.*;
+${additionalImports}
+import java.util.List;
+import java.util.Set;
+
+/**
+ * Mapper for the entity {@link ${entityName}} and its DTO {@link ${entityName}DTO}.
+ */
+<#if usesMappers?has_content>
+@Mapper(componentModel = "spring", uses = {${usesMappers?join(", ")}})
+<#else>
+@Mapper(componentModel = "spring")
+</#if>
+public interface ${entityName}Mapper {
+
+    <#if mappings?has_content>
+    ${mappings?join("\n    ")}
+    </#if>
+    ${entityName}DTO toDto(${entityName} entity);
+
+    List<${entityName}DTO> toDto(List<${entityName}> entityList);
+
+    Set<${entityName}DTO> toDto(Set<${entityName}> entityList);
+
+    <#if mappings?has_content>
+    ${mappings?join("\n    ")}
+    </#if>
+    ${entityName} toEntity(${entityName}DTO entityDTO);
+
+    List<${entityName}> toEntity(List<${entityName}DTO> dtoList);
+
+    Set<${entityName}> toEntity(Set<${entityName}DTO> dtoList);
+
+    /**
+     * Partial update
+     */
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    void partialUpdate(@MappingTarget ${entityName} entity, ${entityName}DTO dto);
+}

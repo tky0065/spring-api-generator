@@ -1,0 +1,85 @@
+package ${packageName}.controller;
+
+import ${packageName}.dto.${entityName}DTO;
+import ${packageName}.service.${entityName}Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+/**
+ * REST Controller for managing ${entityName} entities.
+ */
+@RestController
+@RequestMapping("/api/${entityNameLower}s")
+public class ${entityName}Controller {
+
+    private final ${entityName}Service ${entityNameLower}Service;
+
+    @Autowired
+    public ${entityName}Controller(${entityName}Service ${entityNameLower}Service) {
+        this.${entityNameLower}Service = ${entityNameLower}Service;
+    }
+
+    /**
+     * GET /api/${entityNameLower}s : Get all ${entityName}s.
+     *
+     * @return the ResponseEntity with status 200 (OK) and the list of ${entityNameLower}s in body
+     */
+    @GetMapping
+    public ResponseEntity<List<${entityName}DTO>> getAll${entityName}s() {
+        List<${entityName}DTO> list = ${entityNameLower}Service.findAll();
+        return new ResponseEntity<>(list, HttpStatus.OK);
+    }
+
+    /**
+     * GET /api/${entityNameLower}s/{id} : Get the ${entityNameLower} by id.
+     *
+     * @param id the id of the ${entityNameLower} to retrieve
+     * @return the ResponseEntity with status 200 (OK) and with body the ${entityNameLower}DTO, or with status 404 (Not Found)
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<${entityName}DTO> get${entityName}(@PathVariable ${idType} id) {
+        ${entityName}DTO ${entityNameLower}DTO = ${entityNameLower}Service.findOne(id);
+        return ResponseEntity.ok(${entityNameLower}DTO);
+    }
+
+    /**
+     * POST /api/${entityNameLower}s : Create a new ${entityNameLower}.
+     *
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to create
+     * @return the ResponseEntity with status 201 (Created) and with body the new ${entityNameLower}DTO
+     */
+    @PostMapping
+    public ResponseEntity<${entityName}DTO> create${entityName}(@RequestBody ${entityName}DTO ${entityNameLower}DTO) {
+        ${entityName}DTO result = ${entityNameLower}Service.save(${entityNameLower}DTO);
+        return new ResponseEntity<>(result, HttpStatus.CREATED);
+    }
+
+    /**
+     * PUT /api/${entityNameLower}s : Updates an existing ${entityNameLower}.
+     *
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to update
+     * @return the ResponseEntity with status 200 (OK) and with body the updated ${entityNameLower}DTO
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<${entityName}DTO> update${entityName}(@PathVariable ${idType} id, @RequestBody ${entityName}DTO ${entityNameLower}DTO) {
+        ${entityNameLower}DTO.setId(id);
+        ${entityName}DTO result = ${entityNameLower}Service.update(${entityNameLower}DTO);
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * DELETE /api/${entityNameLower}s/{id} : delete the "id" ${entityNameLower}.
+     *
+     * @param id the id of the ${entityNameLower} to delete
+     * @return the ResponseEntity with status 204 (NO_CONTENT)
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete${entityName}(@PathVariable ${idType} id) {
+        ${entityNameLower}Service.delete(id);
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -1,0 +1,47 @@
+package ${packageName}.domain;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import javax.persistence.Column;
+import javax.persistence.MappedSuperclass;
+import javax.persistence.Version;
+import java.io.Serializable;
+import java.time.Instant;
+
+/**
+ * Base abstract class for entities with common attributes.
+ * @param <ID> the ID type of entity
+ */
+@MappedSuperclass
+@Getter
+@Setter
+public abstract class AbstractEntity<ID> implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * Get the entity ID.
+     * @return the entity ID
+     */
+    public abstract ID getId();
+
+    /**
+     * Set the entity ID.
+     * @param id the ID to set
+     */
+    public abstract void setId(ID id);
+
+    @Version
+    private Integer version;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+}

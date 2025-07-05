@@ -1,0 +1,24 @@
+package ${packageName}.dto;
+
+import java.io.Serializable;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+${importStatements}
+
+/**
+ * A DTO for the {@link ${packageName}.domain.${entityName}} entity.
+ */
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ${entityName}DTO implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+${fields}
+
+    // Lombok génère automatiquement les getters, setters, equals, hashCode et toString
+}

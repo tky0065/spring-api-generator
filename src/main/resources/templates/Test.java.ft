@@ -1,0 +1,118 @@
+package ${packageName}.service;
+
+import ${packageName}.domain.${entityName};
+import ${packageName}.dto.${entityName}DTO;
+import ${packageName}.mapper.${entityName}Mapper;
+import ${packageName}.repository.${entityName}Repository;
+import ${packageName}.service.impl.${entityName}ServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ${entityName}ServiceTest {
+
+    @Mock
+    private ${entityName}Repository ${entityNameLower}Repository;
+
+    @Mock
+    private ${entityName}Mapper ${entityNameLower}Mapper;
+
+    @InjectMocks
+    private ${entityName}ServiceImpl ${entityNameLower}Service;
+
+    private ${entityName} ${entityNameLower};
+    private ${entityName}DTO ${entityNameLower}DTO;
+    private List<${entityName}> ${entityNameLower}List;
+    private ${idType} testId;
+
+    @BeforeEach
+    void setUp() {
+        // Setup test data
+        testId = <#if idType == "String">"test-id"<#elseif idType == "Long">1L<#elseif idType == "Integer">1<#else>null</#if>;
+
+        ${entityNameLower} = new ${entityName}();
+        // Set id directly on the entity using reflection or direct field access if needed
+        // For test purposes, we'll mock the responses instead of relying on actual entity getter methods
+
+        ${entityNameLower}DTO = new ${entityName}DTO();
+        ${entityNameLower}DTO.setId(testId);
+
+        ${entityNameLower}List = new ArrayList<>();
+        ${entityNameLower}List.add(${entityNameLower});
+    }
+
+    @Test
+    void testSave() {
+        // Arrange
+        when(${entityNameLower}Mapper.toEntity(any(${entityName}DTO.class))).thenReturn(${entityNameLower});
+        when(${entityNameLower}Repository.save(any(${entityName}.class))).thenReturn(${entityNameLower});
+        when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
+
+        // Act
+        ${entityName}DTO result = ${entityNameLower}Service.save(${entityNameLower}DTO);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(${entityNameLower}Repository).save(any(${entityName}.class));
+        verify(${entityNameLower}Mapper).toDto(any(${entityName}.class));
+    }
+
+    @Test
+    void testFindAll() {
+        // Arrange
+        List<${entityName}DTO> dtoList = new ArrayList<>();
+        dtoList.add(${entityNameLower}DTO);
+
+        when(${entityNameLower}Repository.findAll()).thenReturn(${entityNameLower}List);
+
+        // Stub the individual entity mapping instead of the list mapping
+        // This correctly handles the stream().map() call in the service
+        when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
+
+        // Act
+        List<${entityName}DTO> result = ${entityNameLower}Service.findAll();
+
+        // Assert
+        assertThat(result).isNotNull().hasSize(1);
+        verify(${entityNameLower}Repository).findAll();
+    }
+
+    @Test
+    void testFindOne() {
+        // Arrange
+        when(${entityNameLower}Repository.findById(any())).thenReturn(Optional.of(${entityNameLower}));
+        when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
+
+        // Act
+        ${entityName}DTO result = ${entityNameLower}Service.findOne(testId);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(${entityNameLower}Repository).findById(any());
+    }
+
+    @Test
+    void testDelete() {
+        // Arrange
+        doNothing().when(${entityNameLower}Repository).deleteById(any());
+
+        // Act
+        ${entityNameLower}Service.delete(testId);
+
+        // Assert
+        verify(${entityNameLower}Repository).deleteById(any());
+    }
+}

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="40px" height="40px" viewBox="0 0 40 40" version="1.1" xmlns="http://www.w3.org/2000/svg">
+    <title>Spring Boot Code Generator</title>
+    <defs>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-1">
+            <stop stop-color="#6DB33F" offset="0%"></stop>
+            <stop stop-color="#4B9A2D" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient x1="0%" y1="0%" x2="100%" y2="100%" id="linearGradient-2">
+            <stop stop-color="#2E6DB4" offset="0%"></stop>
+            <stop stop-color="#164B7E" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="Icon" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <!-- Background -->
+        <rect id="Background" fill="#FFFFFF" x="0" y="0" width="40" height="40" rx="4"></rect>
+
+        <!-- Spring Leaf -->
+        <path d="M20,5 C14.5,5 10,9.5 10,15 C10,20.5 14.5,25 20,25 C25.5,25 30,20.5 30,15 C30,9.5 25.5,5 20,5 Z" id="Spring-Leaf" fill="url(#linearGradient-1)"></path>
+
+        <!-- Code Brackets -->
+        <path d="M12,18 L8,22 L12,26" id="Bracket-Left" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M28,18 L32,22 L28,26" id="Bracket-Right" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+
+        <!-- API Lines -->
+        <path d="M16,28 L24,28" id="API-Line-1" stroke="#2E6DB4" stroke-width="2" stroke-linecap="round"></path>
+        <path d="M14,32 L26,32" id="API-Line-2" stroke="#2E6DB4" stroke-width="2" stroke-linecap="round"></path>
+        <path d="M18,36 L22,36" id="API-Line-3" stroke="#2E6DB4" stroke-width="2" stroke-linecap="round"></path>
+
+        <!-- Generation Symbol -->
+        <circle id="Generation-Circle" fill="url(#linearGradient-2)" cx="28" cy="12" r="6"></circle>
+        <path d="M28,9 L28,15" id="Generation-Plus-V" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"></path>
+        <path d="M25,12 L31,12" id="Generation-Plus-H" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"></path>
+    </g>
+</svg>
+

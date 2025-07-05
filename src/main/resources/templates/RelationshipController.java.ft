@@ -1,0 +1,20 @@
+package ${controllerPackage};
+
+${additionalImports}
+
+/**
+ * REST controller for managing ${entityName} relationships.
+ */
+@RestController
+@RequestMapping("/api/${entityNameLower}s/relationships")
+public class ${entityName}RelationshipController {
+
+    private final ${entityName}Service ${entityNameLower}Service;
+
+    @Autowired
+    public ${entityName}RelationshipController(${entityName}Service ${entityNameLower}Service) {
+        this.${entityNameLower}Service = ${entityNameLower}Service;
+    }
+
+    ${relationshipMethods}
+}

@@ -1,0 +1,108 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.enokdev.spring-api-generator</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
+    <name>Spring Boot Code Generator</name>
+
+    <!-- Plugin version -->
+    <version>1.0.0</version>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email="enokdev.bf@gmail.com" url="https://enokdev-com.vercel.app/">EnokDev</vendor>
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-description -->
+    <description><![CDATA[
+    <h2>Accelerate Your Spring Boot Development</h2>
+
+    <p>This plugin automatically generates complete Spring Boot application structure from JPA entities or database schemas.
+    It simplifies the development process by creating all necessary components following best practices.</p>
+
+    <h3>Key Features:</h3>
+    <ul>
+      <li><b>Complete API Generation</b> - Controllers, Services, Repositories, DTOs, Mappers</li>
+      <li><b>Database Reverse Engineering</b> - Generate entities from existing database schemas</li>
+      <li><b>Relation Management</b> - Special handling for JPA relationships (OneToMany, ManyToOne, etc.)</li>
+      <li><b>API Documentation</b> - Auto-generated Swagger/OpenAPI documentation</li>
+      <li><b>Error Handling</b> - Global exception handler with proper HTTP status codes</li>
+      <li><b>Testing Support</b> - JUnit 5 tests with Mockito for all generated components</li>
+    </ul>
+
+    <h3>Benefits:</h3>
+    <ul>
+      <li>Reduce boilerplate code by up to 80%</li>
+      <li>Enforce consistent patterns and best practices</li>
+      <li>Accelerate development workflow</li>
+      <li>Focus on business logic instead of repetitive CRUD operations</li>
+    </ul>
+
+    <p>Works with Spring Boot 2.x and 3.x projects using Java 8, 11, 17, or 21.</p>
+  ]]></description>
+
+    <!-- Short summary displayed as a single line -->
+    <change-notes><![CDATA[
+    <h3>Version 1.0.0 (July 2025)</h3>
+    <ul>
+      <li>Initial release with complete Spring Boot code generation</li>
+      <li>Support for JPA entity analysis and database reverse engineering</li>
+      <li>Generation of controllers, services, repositories, DTOs and tests</li>
+      <li>Integration with Swagger/OpenAPI documentation</li>
+      <li>Global exception handling and proper HTTP status codes</li>
+    </ul>
+  ]]></change-notes>
+
+    <!-- Plugin category -->
+    <category>Code Generation</category>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <!-- Tags to help users find your plugin in the marketplace -->
+<!--    <tags>-->
+<!--        <tag>spring</tag>-->
+<!--        <tag>spring-boot</tag>-->
+<!--        <tag>jpa</tag>-->
+<!--        <tag>api</tag>-->
+<!--        <tag>rest</tag>-->
+<!--        <tag>code-generation</tag>-->
+<!--        <tag>database</tag>-->
+<!--        <tag>crud</tag>-->
+<!--    </tags>-->
+
+    <!-- Idea version compatibility -->
+    <idea-version since-build="231" until-build="241.*"/>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+
+    </extensions>
+
+    <actions>
+        <!-- Add the Generate Spring REST Code action to the context menu -->
+        <action id="com.enokdev.springapigenerator.GenerateSpringCode"
+                class="com.enokdev.springapigenerator.action.GenerateSpringCodeAction"
+                text="Generate Spring REST Code"
+                description="Generate Spring Boot REST code (Controllers, Services, DTOs) from JPA entity"
+                icon="AllIcons.Actions.BuildLoadChanges">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
+        <!-- Add the Generate Entities From Database action -->
+        <action id="com.enokdev.springapigenerator.GenerateEntitiesFromDatabase"
+                class="com.enokdev.springapigenerator.action.GenerateEntitiesFromDatabaseAction"
+                text="Generate Entities from Database"
+                description="Generate JPA entities from database schema"
+                icon="AllIcons.Nodes.DataSchema">
+            <add-to-group group-id="GenerateGroup" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="alt shift D"/>
+        </action>
+    </actions>
+</idea-plugin>

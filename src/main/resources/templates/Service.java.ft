@@ -1,0 +1,49 @@
+package ${packageName}.service;
+
+import ${packageName}.dto.${entityName}DTO;
+
+import java.util.List;
+
+/**
+ * Service Interface for managing {@link ${packageName}.domain.${entityName}}.
+ */
+public interface ${entityName}Service {
+
+    /**
+     * Save a ${entityNameLower}.
+     *
+     * @param ${entityNameLower}DTO the entity to save.
+     * @return the persisted entity.
+     */
+    ${entityName}DTO save(${entityName}DTO ${entityNameLower}DTO);
+
+    /**
+     * Updates a ${entityNameLower}.
+     *
+     * @param ${entityNameLower}DTO the entity to update.
+     * @return the persisted entity.
+     */
+    ${entityName}DTO update(${entityName}DTO ${entityNameLower}DTO);
+
+    /**
+     * Get all the ${entityNameLower}s.
+     *
+     * @return the list of entities.
+     */
+    List<${entityName}DTO> findAll();
+
+    /**
+     * Get the "${entityNameLower}" by id.
+     *
+     * @param id the id of the entity.
+     * @return the entity.
+     */
+    ${entityName}DTO findOne(${idType} id);
+
+    /**
+     * Delete the "${entityNameLower}" by id.
+     *
+     * @param id the id of the entity.
+     */
+    void delete(${idType} id);
+}
