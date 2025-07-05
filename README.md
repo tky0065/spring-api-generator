@@ -31,7 +31,7 @@ Spring Boot Code Generator is an IntelliJ IDEA plugin that automatically generat
 
 ### Manual Installation
 
-1. Download the latest plugin JAR from the [Releases](https://github.com/enokdev/spring-api-generator/releases)
+1. Download the latest plugin JAR from the [Releases](https://github.com/tky0065/spring-api-generator/releases)
 2. Open IntelliJ IDEA
 3. Go to `Settings` → `Plugins` → ⚙️ → `Install Plugin from Disk...`
 4. Select the downloaded JAR file
@@ -118,8 +118,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-If you encounter any issues or have questions, please file an issue on our [GitHub repository](https://github.com/enokdev/spring-api-generator/issues).
+If you encounter any issues or have questions, please file an issue on our [GitHub repository](https://github.com/tky0065/spring-api-generator/issues).
 
 ---
 
-Developed with ❤️ by [EnokDev](https://www.enokdev.com)
+Developed with ❤️ by [EnokDev](https://enokdev-com.vercel.app)
