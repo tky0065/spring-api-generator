@@ -1,9 +1,8 @@
 package ${packageName};
 
-<#assign basePackageName = packageName?matches("(.*)\\.\\w+$")[0].groups[1]>
-import ${basePackageName}.config.security.JwtUtil;
-import ${basePackageName}.entity.User;
-import ${basePackageName}.service.UserService;
+import ${packageName?keep_before_last(".")}.config.security.JwtUtil;
+import ${packageName?keep_before_last(".")}.entity.User;
+import ${packageName?keep_before_last(".")}.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

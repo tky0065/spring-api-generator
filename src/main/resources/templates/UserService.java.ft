@@ -1,8 +1,7 @@
 package ${packageName};
 
-<#assign basePackageName = packageName?matches("(.*)\\.\\w+$")[0].groups[1]>
-import ${basePackageName}.entity.User;
-import ${basePackageName}.repository.UserRepository;
+import ${packageName?keep_before_last(".")}.entity.User;
+import ${packageName?keep_before_last(".")}.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
