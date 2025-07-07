@@ -1,6 +1,6 @@
 package ${packageName}.service;
 
-import ${packageName}.domain.${entityName};
+import ${packageName}.entity.${entityName};
 import ${packageName}.dto.${entityName}DTO;
 import ${packageName}.mapper.${entityName}Mapper;
 import ${packageName}.repository.${entityName}Repository;

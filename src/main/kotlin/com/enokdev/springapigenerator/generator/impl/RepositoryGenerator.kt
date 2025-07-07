@@ -49,13 +49,19 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator("Repository.java.ft") 
 
         // Add common Spring Data JPA imports
         imports.add("org.springframework.data.jpa.repository.JpaRepository")
-        imports.add("org.springframework.data.jpa.repository.Query")
-        imports.add("org.springframework.data.repository.query.Param")
         imports.add("org.springframework.stereotype.Repository")
 
-        // Add import for the ID type if not a primitive or common type
-        if (!entityMetadata.idType.startsWith("java.lang") && !isPrimitiveType(entityMetadata.idType)) {
-            imports.add(entityMetadata.idType)
+        // Add additional imports based on field types
+        for (field in entityMetadata.fields) {
+            // Generate finder methods for certain field types/names
+            if (field.name != "id" && !field.isCollection) {
+                if (field.name.equals("name", ignoreCase = true) ||
+                    field.name.equals("email", ignoreCase = true) ||
+                    field.name.equals("username", ignoreCase = true)) {
+                    imports.add("java.util.Optional")
+                    break
+                }
+            }
         }
 
         return imports.joinToString("\n") { "import $it;" }

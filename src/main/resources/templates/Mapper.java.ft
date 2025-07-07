@@ -1,6 +1,6 @@
 package ${packageName}.mapper;
 
-import ${packageName}.domain.${entityName};
+import ${packageName}.entity.${entityName};
 import ${packageName}.dto.${entityName}DTO;
 import org.mapstruct.*;
 ${additionalImports}

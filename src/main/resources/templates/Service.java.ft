@@ -5,7 +5,7 @@ import ${packageName}.dto.${entityName}DTO;
 import java.util.List;
 
 /**
- * Service Interface for managing {@link ${packageName}.domain.${entityName}}.
+ * Service Interface for managing {@link ${packageName}.entity.${entityName}}.
  */
 public interface ${entityName}Service {
 

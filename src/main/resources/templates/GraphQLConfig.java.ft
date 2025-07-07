@@ -1,0 +1,92 @@
+package ${packageName};
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.graphql.execution.RuntimeWiringConfigurer;
+import graphql.schema.GraphQLScalarType;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+/**
+ * Configuration class for GraphQL.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Configuration
+public class GraphQLConfig {
+
+    /**
+     * Configure custom scalars for GraphQL.
+     */
+    @Bean
+    public RuntimeWiringConfigurer runtimeWiringConfigurer() {
+        return wiringBuilder -> wiringBuilder
+            .scalar(dateScalar())
+            .scalar(dateTimeScalar());
+    }
+
+    /**
+     * Create a custom Date scalar for GraphQL.
+     */
+    private GraphQLScalarType dateScalar() {
+        return GraphQLScalarType.newScalar()
+            .name("Date")
+            .description("Java LocalDate as scalar")
+            .coercing(new graphql.schema.Coercing<LocalDate, String>() {
+                @Override
+                public String serialize(Object dataFetcherResult) {
+                    if (dataFetcherResult instanceof LocalDate) {
+                        return ((LocalDate) dataFetcherResult).format(DateTimeFormatter.ISO_LOCAL_DATE);
+                    }
+                    return null;
+                }
+
+                @Override
+                public LocalDate parseValue(Object input) {
+                    if (input instanceof String) {
+                        return LocalDate.parse((String) input, DateTimeFormatter.ISO_LOCAL_DATE);
+                    }
+                    return null;
+                }
+
+                @Override
+                public LocalDate parseLiteral(Object input) {
+                    return parseValue(input);
+                }
+            })
+            .build();
+    }
+
+    /**
+     * Create a custom DateTime scalar for GraphQL.
+     */
+    private GraphQLScalarType dateTimeScalar() {
+        return GraphQLScalarType.newScalar()
+            .name("DateTime")
+            .description("Java LocalDateTime as scalar")
+            .coercing(new graphql.schema.Coercing<LocalDateTime, String>() {
+                @Override
+                public String serialize(Object dataFetcherResult) {
+                    if (dataFetcherResult instanceof LocalDateTime) {
+                        return ((LocalDateTime) dataFetcherResult).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    }
+                    return null;
+                }
+
+                @Override
+                public LocalDateTime parseValue(Object input) {
+                    if (input instanceof String) {
+                        return LocalDateTime.parse((String) input, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    }
+                    return null;
+                }
+
+                @Override
+                public LocalDateTime parseLiteral(Object input) {
+                    return parseValue(input);
+                }
+            })
+            .build();
+    }
+}

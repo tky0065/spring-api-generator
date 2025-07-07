@@ -21,7 +21,7 @@ data class EntityMetadata(
     val mapperName: String = "${className}Mapper",
     val entityBasePackage: String = packageName.substringBeforeLast(".")
 ) {
-    val domainPackage: String get() = "$entityBasePackage.domain"
+    val domainPackage: String get() = "$entityBasePackage.entity"
     val dtoPackage: String get() = "$entityBasePackage.dto"
     val repositoryPackage: String get() = "$entityBasePackage.repository"
     val servicePackage: String get() = "$entityBasePackage.service"

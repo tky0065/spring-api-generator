@@ -1,0 +1,157 @@
+package ${packageName}.controller;
+
+import ${packageName}.entity.${className};
+import ${packageName}.dto.${className}DTO;
+import ${packageName}.service.${className}Service;
+import ${packageName}.mapper.${className}Mapper;
+import org.springframework.graphql.data.method.annotation.Argument;
+import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.graphql.data.method.annotation.MutationMapping;
+import org.springframework.stereotype.Controller;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * GraphQL Controller for ${className} entity.
+ * Contains both Query and Mutation resolvers.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Controller
+public class ${className}GraphQLController {
+
+    private final ${className}Service ${entityNameLower}Service;
+    private final ${className}Mapper ${entityNameLower}Mapper;
+
+    @Autowired
+    public ${className}GraphQLController(${className}Service ${entityNameLower}Service, ${className}Mapper ${entityNameLower}Mapper) {
+        this.${entityNameLower}Service = ${entityNameLower}Service;
+        this.${entityNameLower}Mapper = ${entityNameLower}Mapper;
+    }
+
+    //---------- QUERIES ----------//
+
+    /**
+     * Get a ${className} by ID
+     *
+     * @param id The ID of the ${className}
+     * @return The ${className} if found, null otherwise
+     */
+    @QueryMapping
+    public ${className} get${className}(@Argument ${idType} id) {
+        try {
+            ${className}DTO dto = ${entityNameLower}Service.findOne(id);
+            return ${entityNameLower}Mapper.toEntity(dto);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get all ${className}s with pagination
+     *
+     * @param page The page number (zero-based)
+     * @param size The page size
+     * @return A list of ${className}s
+     */
+    @QueryMapping
+    public List<${className}> getAll${className}s(@Argument Integer page, @Argument Integer size) {
+        // Since our service doesn't support pagination directly, we'll need to handle it manually
+        List<${className}DTO> allDtos = ${entityNameLower}Service.findAll();
+
+        // Apply manual pagination
+        int pageVal = page != null ? page : 0;
+        int sizeVal = size != null ? size : 10;
+        int startIndex = pageVal * sizeVal;
+        int endIndex = Math.min(startIndex + sizeVal, allDtos.size());
+
+        // If startIndex is beyond list size, return empty list
+        if (startIndex >= allDtos.size()) {
+            return List.of();
+        }
+
+        return allDtos.subList(startIndex, endIndex)
+            .stream()
+            .map(${entityNameLower}Mapper::toEntity)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Count all ${className}s
+     *
+     * @return The number of ${className}s
+     */
+    @QueryMapping
+    public long count${className}s() {
+        return ${entityNameLower}Service.findAll().size();
+    }
+
+    //---------- MUTATIONS ----------//
+
+    /**
+     * Create a new ${className}
+     *
+     * @param input The ${className} to create
+     * @return The created ${className}
+     */
+    @MutationMapping
+    public ${className} create${className}(@Argument ${className} input) {
+        // Ensure we're creating a new entity
+        if (input.getId() != null) {
+            input.setId(null);
+        }
+
+        ${className}DTO dto = ${entityNameLower}Mapper.toDto(input);
+        ${className}DTO savedDto = ${entityNameLower}Service.save(dto);
+        return ${entityNameLower}Mapper.toEntity(savedDto);
+    }
+
+    /**
+     * Update an existing ${className}
+     *
+     * @param id The ID of the ${className} to update
+     * @param input The updated ${className} data
+     * @return The updated ${className}
+     * @throws RuntimeException if the ${className} is not found
+     */
+    @MutationMapping
+    public ${className} update${className}(@Argument ${idType} id, @Argument ${className} input) {
+        // Check if entity exists
+        try {
+            ${entityNameLower}Service.findOne(id); // Will throw exception if not found
+
+            // Ensure the ID is set correctly
+            input.setId(id);
+
+            ${className}DTO dto = ${entityNameLower}Mapper.toDto(input);
+            ${className}DTO updatedDto = ${entityNameLower}Service.update(dto);
+            return ${entityNameLower}Mapper.toEntity(updatedDto);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("${className} not found with id: " + id);
+        }
+    }
+
+    /**
+     * Delete a ${className}
+     *
+     * @param id The ID of the ${className} to delete
+     * @return True if deleted successfully
+     */
+    @MutationMapping
+    public boolean delete${className}(@Argument ${idType} id) {
+        try {
+            // Vérifier d'abord si l'entité existe
+            ${entityNameLower}Service.findOne(id);
+
+            // Si aucune exception n'est lancée, l'entité existe et peut être supprimée
+            ${entityNameLower}Service.delete(id);
+            return true;
+        } catch (RuntimeException e) {
+            // L'entité n'existe pas
+            return false;
+        }
+    }
+}

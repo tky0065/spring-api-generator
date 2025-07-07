@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Spring API Generator Documentation
+    url: https://github.com/enokdev/spring-api-generator/blob/main/docs/USER_GUIDE.md
+    about: Please check our documentation first to see if your question is already answered
+  - name: Spring Boot Documentation
+    url: https://docs.spring.io/spring-boot/docs/current/reference/html/
+    about: For questions related to Spring Boot itself, not the plugin
+  - name: Email Support
+    url: mailto:enokdev.bf@gmail.com
+    about: For sensitive issues or direct communication with the plugin author
+

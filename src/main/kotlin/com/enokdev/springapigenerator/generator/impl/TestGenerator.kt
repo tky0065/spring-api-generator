@@ -222,7 +222,7 @@ class TestGenerator : AbstractTemplateCodeGenerator("Test.java.ft") {
         val imports = mutableSetOf<String>()
 
         // Add imports for the entity, dto, repository, mapper, service
-        imports.add("${entityMetadata.domainPackage}.${entityMetadata.className}")
+        imports.add("${entityMetadata.domainPackage}.${entityMetadata.className}") // Le domainPackage contient maintenant le chemin vers entity
         imports.add("${entityMetadata.dtoPackage}.${entityMetadata.dtoName}")
         imports.add("${entityMetadata.repositoryPackage}.${entityMetadata.repositoryName}")
         imports.add("${entityMetadata.mapperPackage}.${entityMetadata.mapperName}")

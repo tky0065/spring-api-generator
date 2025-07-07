@@ -8,7 +8,7 @@ import lombok.Builder;
 ${importStatements}
 
 /**
- * A DTO for the {@link ${packageName}.domain.${entityName}} entity.
+ * A DTO for the {@link ${packageName}.entity.${entityName}} entity.
  */
 @Data
 @NoArgsConstructor

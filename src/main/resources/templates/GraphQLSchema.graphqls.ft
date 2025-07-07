@@ -1,0 +1,51 @@
+# GraphQL Schema for ${className}
+# Generated on ${currentDate?datetime} by Spring API Generator Plugin
+
+# Scalars
+scalar Date
+scalar DateTime
+
+# ${className} type definition
+type ${className} {
+    # Primary identifier
+    id: ID!
+<#list entityFields as field>
+<#if field.name != "id">
+    # ${field.name} field
+    ${field.name}: <#if fieldToGraphQLType[field.name]??>${fieldToGraphQLType[field.name]}<#else>String</#if><#if field.nullable == false>!</#if>
+</#if>
+</#list>
+}
+
+# Input type for creating a new ${className}
+input ${className}Input {
+<#list entityFields as field>
+<#if field.name != "id">
+    ${field.name}: <#if fieldToGraphQLType[field.name]??>${fieldToGraphQLType[field.name]}<#else>String</#if><#if field.nullable == false>!</#if>
+</#if>
+</#list>
+}
+
+# Queries related to ${className}
+ type Query {
+    # Get a single ${className} by ID
+    ${entityNameLower}(id: ID!): ${className}
+
+    # Get all ${className}s with optional pagination
+    all${className}s(page: Int = 0, size: Int = 10): [${className}]!
+
+    # Count total ${className}s
+    count${className}s: Int!
+}
+
+# Mutations related to ${className}
+ type Mutation {
+    # Create a new ${className}
+    create${className}(input: ${className}Input!): ${className}!
+
+    # Update an existing ${className}
+    update${className}(id: ID!, input: ${className}Input!): ${className}!
+
+    # Delete a ${className}
+    delete${className}(id: ID!): Boolean!
+}

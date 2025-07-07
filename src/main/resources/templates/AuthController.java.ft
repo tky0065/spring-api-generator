@@ -1,0 +1,196 @@
+package ${packageName};
+
+<#assign basePackageName = packageName?matches("(.*)\\.\\w+$")[0].groups[1]>
+import ${basePackageName}.config.security.JwtUtil;
+import ${basePackageName}.entity.User;
+import ${basePackageName}.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
+import java.security.Principal;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Controller for handling authentication requests.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final AuthenticationManager authenticationManager;
+    private final UserService userService;
+    private final JwtUtil jwtUtil;
+
+    @Autowired
+    public AuthController(AuthenticationManager authenticationManager, UserService userService, JwtUtil jwtUtil) {
+        this.authenticationManager = authenticationManager;
+        this.userService = userService;
+        this.jwtUtil = jwtUtil;
+    }
+
+    /**
+     * Login endpoint to authenticate users and generate JWT token.
+     *
+     * @param loginRequest login credentials
+     * @return JWT token if authentication successful
+     */
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
+            );
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String jwt = jwtUtil.generateToken(userDetails);
+
+            User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new IllegalStateException("User not found after authentication"));
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", jwt);
+            response.put("user", mapUserToDto(user));
+
+            return ResponseEntity.ok(response);
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password");
+        }
+    }
+
+    /**
+     * Register a new user.
+     *
+     * @param registerRequest user registration details
+     * @return the created user
+     */
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        try {
+            User user = new User();
+            user.setUsername(registerRequest.getUsername());
+            user.setPassword(registerRequest.getPassword());
+            user.setEmail(registerRequest.getEmail());
+            user.setFullName(registerRequest.getFullName());
+            user.addRole("ROLE_USER");
+
+            User createdUser = userService.createUser(user);
+            return ResponseEntity.status(HttpStatus.CREATED).body(mapUserToDto(createdUser));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * Get the currently authenticated user information.
+     *
+     * @param principal the currently authenticated principal
+     * @return the user details
+     */
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUser(Principal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
+        }
+
+        User user = userService.findByUsername(principal.getName())
+            .orElseThrow(() -> new IllegalStateException("User not found: " + principal.getName()));
+
+        return ResponseEntity.ok(mapUserToDto(user));
+    }
+
+    /**
+     * Map User entity to a DTO object (removes sensitive information).
+     *
+     * @param user the user entity
+     * @return user DTO without sensitive information
+     */
+    private Map<String, Object> mapUserToDto(User user) {
+        Map<String, Object> userDto = new HashMap<>();
+        userDto.put("id", user.getId());
+        userDto.put("username", user.getUsername());
+        userDto.put("email", user.getEmail());
+        userDto.put("fullName", user.getFullName());
+        userDto.put("roles", user.getRoles());
+        userDto.put("enabled", user.isEnabled());
+        return userDto;
+    }
+
+    /**
+     * Login request DTO.
+     */
+    public static class LoginRequest {
+        private String username;
+        private String password;
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+    }
+
+    /**
+     * Registration request DTO.
+     */
+    public static class RegisterRequest {
+        private String username;
+        private String password;
+        private String email;
+        private String fullName;
+
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getFullName() {
+            return fullName;
+        }
+
+        public void setFullName(String fullName) {
+            this.fullName = fullName;
+        }
+    }
+}

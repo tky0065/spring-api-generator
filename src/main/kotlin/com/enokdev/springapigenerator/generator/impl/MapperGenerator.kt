@@ -87,34 +87,37 @@ class MapperGenerator : AbstractTemplateCodeGenerator("Mapper.java.ft") {
     }
 
     /**
+     * Generate imports for the mapper.
+     */
+    private fun generateImports(entityMetadata: EntityMetadata): List<String> {
+        val imports = mutableListOf<String>()
+
+        val entityPackage = entityMetadata.domainPackage // On garde le nom de la variable mais il contient maintenant le package entity
+        val dtoPackage = entityMetadata.dtoPackage
+
+        imports.add("$entityPackage.${entityMetadata.className}")
+        imports.add("$dtoPackage.${entityMetadata.dtoName}")
+        imports.add("org.mapstruct.*")
+
+        return imports
+    }
+
+    /**
      * Generate additional imports needed for the mapper.
      */
     private fun generateAdditionalImports(entityMetadata: EntityMetadata): String {
-        val imports = mutableSetOf<String>()
-
-        // Add imports for the entity and its DTO
-        val domainPackage = entityMetadata.domainPackage
-        val dtoPackage = entityMetadata.dtoPackage
-        imports.add("$domainPackage.${entityMetadata.className}")
-        imports.add("$dtoPackage.${entityMetadata.dtoName}")
+        val imports = mutableListOf<String>()
 
         // Add imports for related entities
         entityMetadata.fields.forEach { field ->
             if (field.relationType != RelationType.NONE) {
                 val targetName = field.relationTargetSimpleName
                 if (targetName != null) {
-                    if (field.isCollection) {
-                        imports.add("java.util.List")
-                        imports.add("java.util.Set")
-                        imports.add("java.util.stream.Collectors")
-                    }
-
-                    val mapperPackage = entityMetadata.mapperPackage
-                    imports.add("$mapperPackage.${targetName}Mapper")
+                    imports.add("import ${entityMetadata.entityBasePackage}.dto.${targetName}DTO;")
                 }
             }
         }
 
-        return imports.joinToString("\n") { "import $it;" }
+        return imports.joinToString("\n")
     }
 }

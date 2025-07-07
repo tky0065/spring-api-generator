@@ -36,6 +36,10 @@ class GeneratorConfigDialog(
     private val testCheckbox = JBCheckBox("Tests", true)
     private val useMapstructCheckbox = JBCheckBox("Use MapStruct 1.6.3", false)
     private val useSwaggerCheckbox = JBCheckBox("Use Swagger/OpenAPI 2.8.9", false)
+    private val useSpringSecurityCheckbox = JBCheckBox("Add Spring Security", false)
+    private val configureSecurityButton = JButton("Configure Security")
+    private val useGraphQLCheckbox = JBCheckBox("Add GraphQL Support", false)
+    private val configureGraphQLButton = JButton("Configure GraphQL")
 
     // Package configuration fields
     private val basePackageField = JBTextField(entityMetadata.entityBasePackage)
@@ -49,6 +53,14 @@ class GeneratorConfigDialog(
     // Flags to track whether dependencies should be added
     private var shouldAddMapstruct = false
     private var shouldAddSwagger = false
+    private var shouldAddSpringSecurity = false
+
+    // Security configuration
+    private var securityConfig: SecurityConfigDialog.SecurityConfig? = null
+
+    // GraphQL configuration
+    private var shouldAddGraphQL = false
+    private var graphQLConfig: GraphQLConfigDialog.GraphQLConfig? = null
 
     init {
         title = "Generate Spring Boot Code"
@@ -70,11 +82,55 @@ class GeneratorConfigDialog(
             }
         }
 
+        // Configure the Security button action
+        configureSecurityButton.isEnabled = false
+        useSpringSecurityCheckbox.addChangeListener {
+            configureSecurityButton.isEnabled = useSpringSecurityCheckbox.isSelected
+        }
+
+        configureSecurityButton.addActionListener {
+            val dialog = SecurityConfigDialog(project)
+            if (dialog.showAndGet()) {
+                securityConfig = SecurityConfigDialog.SecurityConfig(
+                    securityLevel = dialog.getSecurityLevel(),
+                    generateUserDetailsService = dialog.shouldGenerateUserDetailsService(),
+                    secureControllers = dialog.shouldSecureControllers(),
+                    configureSwagger = dialog.shouldConfigureSwagger(),
+                    packageSuffix = dialog.getPackageSuffix()
+                )
+            }
+        }
+
+        // Configure the GraphQL button action
+        configureGraphQLButton.isEnabled = false
+        useGraphQLCheckbox.addChangeListener {
+            configureGraphQLButton.isEnabled = useGraphQLCheckbox.isSelected
+        }
+
+        configureGraphQLButton.addActionListener {
+            val dialog = GraphQLConfigDialog(project)
+            if (dialog.showAndGet()) {
+                graphQLConfig = GraphQLConfigDialog.GraphQLConfig(
+                    generateSchema = dialog.shouldGenerateSchema(),
+                    generateQueryResolver = dialog.shouldGenerateQueryResolver(),
+                    generateMutationResolver = dialog.shouldGenerateMutationResolver(),
+                    generateConfig = dialog.shouldGenerateConfig(),
+                    addSubscriptions = dialog.shouldAddSubscriptions()
+                )
+            }
+        }
+
         // Check if MapStruct is already in the project
         checkMapstructDependency()
 
         // Check if Swagger is already in the project
         checkSwaggerDependency()
+
+        // Check if Spring Security is already in the project
+        checkSpringSecurityDependency()
+
+        // Check if GraphQL is already in the project
+        checkGraphQLDependency()
 
         init()
     }
@@ -170,6 +226,99 @@ class GeneratorConfigDialog(
     }
 
     /**
+     * Checks if Spring Security is already present in build files
+     */
+    private fun checkSpringSecurityDependency() {
+        val basePath = project.basePath ?: return
+        var hasSpringSecurity = false
+
+        // Check in build.gradle
+        val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
+        if (buildGradle.exists()) {
+            val content = buildGradle.readText()
+            if (content.contains("spring-boot-starter-security") || content.contains("spring-security-core")) {
+                hasSpringSecurity = true
+            }
+        }
+
+        // Check in build.gradle.kts
+        val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
+        if (buildGradleKts.exists() && !hasSpringSecurity) {
+            val content = buildGradleKts.readText()
+            if (content.contains("spring-boot-starter-security") || content.contains("spring-security-core")) {
+                hasSpringSecurity = true
+            }
+        }
+
+        // Check in pom.xml
+        val pomXml = File(Paths.get(basePath, "pom.xml").toString())
+        if (pomXml.exists() && !hasSpringSecurity) {
+            val content = pomXml.readText()
+            if (content.contains("spring-boot-starter-security") || content.contains("spring-security-core")) {
+                hasSpringSecurity = true
+            }
+        }
+
+        // If Spring Security is not found, enable the checkbox
+        if (!hasSpringSecurity) {
+            useSpringSecurityCheckbox.isEnabled = true
+            shouldAddSpringSecurity = true
+        } else {
+            useSpringSecurityCheckbox.isSelected = true
+            useSpringSecurityCheckbox.isEnabled = false
+            useSpringSecurityCheckbox.text = "Spring Security already detected"
+            configureSecurityButton.isEnabled = true
+        }
+    }
+
+    /**
+     * Checks if GraphQL is already present in build files
+     */
+    private fun checkGraphQLDependency() {
+        val basePath = project.basePath ?: return
+        var hasGraphQL = false
+
+        // Check in build.gradle
+        val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
+        if (buildGradle.exists()) {
+            val content = buildGradle.readText()
+            if (content.contains("spring-boot-starter-graphql") || content.contains("graphql-java")) {
+                hasGraphQL = true
+            }
+        }
+
+        // Check in build.gradle.kts
+        val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
+        if (buildGradleKts.exists() && !hasGraphQL) {
+            val content = buildGradleKts.readText()
+            if (content.contains("spring-boot-starter-graphql") || content.contains("graphql-java")) {
+                hasGraphQL = true
+            }
+        }
+
+        // Check in pom.xml
+        val pomXml = File(Paths.get(basePath, "pom.xml").toString())
+        if (pomXml.exists() && !hasGraphQL) {
+            val content = pomXml.readText()
+            if (content.contains("spring-boot-starter-graphql") || content.contains("graphql-java")) {
+                hasGraphQL = true
+            }
+        }
+
+        // If GraphQL is not found, enable the checkbox
+        if (!hasGraphQL) {
+            useGraphQLCheckbox.isEnabled = true
+            useGraphQLCheckbox.isSelected = false
+            shouldAddGraphQL = false
+        } else {
+            useGraphQLCheckbox.isSelected = true
+            useGraphQLCheckbox.isEnabled = false
+            useGraphQLCheckbox.text = "GraphQL already detected"
+            configureGraphQLButton.isEnabled = true
+        }
+    }
+
+    /**
      * Gets the selected components to generate.
      */
     fun getSelectedComponents(): Set<String> {
@@ -210,6 +359,20 @@ class GeneratorConfigDialog(
      */
     fun shouldAddSwagger(): Boolean {
         return controllerCheckbox.isSelected && useSwaggerCheckbox.isSelected && shouldAddSwagger
+    }
+
+    /**
+     * Check if Spring Security should be added and configured
+     */
+    fun shouldAddSpringSecurity(): Boolean {
+        return useSpringSecurityCheckbox.isSelected && shouldAddSpringSecurity
+    }
+
+    /**
+     * Check if GraphQL should be added to the project
+     */
+    fun shouldAddGraphQL(): Boolean {
+        return useGraphQLCheckbox.isSelected
     }
 
     /**
@@ -293,6 +456,127 @@ class GeneratorConfigDialog(
     }
 
     /**
+     * Returns the Spring Security configuration if enabled
+     */
+    fun getSecurityConfig(): SecurityConfigDialog.SecurityConfig? {
+        return if (useSpringSecurityCheckbox.isSelected) securityConfig else null
+    }
+
+    /**
+     * Returns the GraphQL configuration if enabled
+     */
+    fun getGraphQLConfig(): GraphQLConfigDialog.GraphQLConfig? {
+        return if (useGraphQLCheckbox.isSelected) graphQLConfig else null
+    }
+
+    /**
+     * Returns the Spring Security dependency information based on build system
+     */
+    fun getSpringSecurityDependencyInfo(): Pair<String, String> {
+        val basePath = project.basePath ?: return Pair("", "")
+
+        // Check if using Gradle or Maven
+        val isMaven = File(Paths.get(basePath, "pom.xml").toString()).exists()
+        val isGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString()).exists()
+
+        return when {
+            isMaven -> {
+                val dependency = """
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-security</artifactId>
+                </dependency>
+                <dependency>
+                    <groupId>io.jsonwebtoken</groupId>
+                    <artifactId>jjwt-api</artifactId>
+                    <version>0.12.6</version>
+                </dependency>
+                <dependency>
+                    <groupId>io.jsonwebtoken</groupId>
+                    <artifactId>jjwt-impl</artifactId>
+                    <version>0.12.6</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>io.jsonwebtoken</groupId>
+                    <artifactId>jjwt-jackson</artifactId>
+                    <version>0.12.6</version>
+                    <scope>runtime</scope>
+                </dependency>
+                """
+                Pair("Maven", dependency)
+            }
+            isGradleKts -> {
+                val dependency = """
+                implementation("org.springframework.boot:spring-boot-starter-security")
+                implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+                runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+                runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+                """
+                Pair("Gradle Kotlin", dependency)
+            }
+            else -> {
+                val dependency = """
+                implementation 'org.springframework.boot:spring-boot-starter-security'
+                implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+                runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+                runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+                """
+                Pair("Gradle Groovy", dependency)
+            }
+        }
+    }
+
+    /**
+     * Returns the GraphQL dependency information based on build system
+     */
+    fun getGraphQLDependencyInfo(): Pair<String, String> {
+        val basePath = project.basePath ?: return Pair("", "")
+
+        // Check if using Gradle or Maven
+        val isMaven = File(Paths.get(basePath, "pom.xml").toString()).exists()
+        val isGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString()).exists()
+
+        return when {
+            isMaven -> {
+                val dependency = """
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-graphql</artifactId>
+                </dependency>
+                <dependency>
+                    <groupId>org.springframework.graphql</groupId>
+                    <artifactId>spring-graphql-test</artifactId>
+                    <scope>test</scope>
+                </dependency>
+                <dependency>
+                    <groupId>com.graphql-java</groupId>
+                    <artifactId>graphql-java-extended-scalars</artifactId>
+                    <version>20.0</version>
+                </dependency>
+                """
+                Pair("Maven", dependency)
+            }
+            isGradleKts -> {
+                val dependency = """
+                implementation("org.springframework.boot:spring-boot-starter-graphql")
+                testImplementation("org.springframework.graphql:spring-graphql-test")
+                implementation("com.graphql-java:graphql-java-extended-scalars:20.0")
+                """
+                Pair("Gradle Kotlin", dependency)
+            }
+            else -> {
+                val dependency = """
+                implementation 'org.springframework.boot:spring-boot-starter-graphql'
+                testImplementation 'org.springframework.graphql:spring-graphql-test'
+                implementation 'com.graphql-java:graphql-java-extended-scalars:20.0'
+                """
+                Pair("Gradle Groovy", dependency)
+            }
+        }
+    }
+
+    /**
      * Creates the dialog UI.
      */
     override fun createCenterPanel(): JComponent {
@@ -352,6 +636,16 @@ class GeneratorConfigDialog(
         panel.add(Box.createVerticalStrut(5))
         panel.add(useSwaggerCheckbox)
 
+        // Spring Security checkbox
+        panel.add(Box.createVerticalStrut(5))
+        panel.add(useSpringSecurityCheckbox)
+        panel.add(configureSecurityButton)
+
+        // GraphQL checkbox
+        panel.add(Box.createVerticalStrut(5))
+        panel.add(useGraphQLCheckbox)
+        panel.add(configureGraphQLButton)
+
         return panel
     }
 
@@ -361,7 +655,7 @@ class GeneratorConfigDialog(
     private fun createPackagesPanel(): JComponent {
         return FormBuilder.createFormBuilder()
             .addLabeledComponent("Base Package:", basePackageField)
-            .addLabeledComponent("Domain Package:", domainPackageField)
+            .addLabeledComponent("Entity Package:", domainPackageField)
             .addLabeledComponent("DTO Package:", dtoPackageField)
             .addLabeledComponent("Controller Package:", controllerPackageField)
             .addLabeledComponent("Service Package:", servicePackageField)
@@ -422,5 +716,14 @@ class GeneratorConfigDialog(
         }
 
         return null
+    }
+
+    /**
+     * Get whether GraphQL support should be added.
+     *
+     * @return true if GraphQL support should be added, false otherwise
+     */
+    fun getGraphQLOption(): Boolean {
+        return useGraphQLCheckbox.isSelected
     }
 }

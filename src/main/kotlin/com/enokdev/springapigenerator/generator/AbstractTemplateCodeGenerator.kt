@@ -64,7 +64,7 @@ abstract class AbstractTemplateCodeGenerator(
     /**
      * Create and configure the FreeMarker template engine.
      */
-    private fun createFreemarkerConfig(): Configuration {
+    protected fun createFreemarkerConfig(): Configuration {
         val cfg = Configuration(Configuration.VERSION_2_3_30)
         val classLoader = javaClass.classLoader
         cfg.setClassLoaderForTemplateLoading(classLoader, "templates")

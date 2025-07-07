@@ -1,20 +1,39 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
+about: Suggest a new feature for Spring API Generator
+title: '[FEATURE] '
+labels: 'enhancement'
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Feature Description
+A clear and concise description of the feature you'd like to see added.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+## Use Case
+Explain the specific use case or scenario where this feature would be valuable.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Feature Category
+Please indicate which part of the plugin this feature relates to:
+- [ ] Code Generation (Controllers, Services, etc.)
+- [ ] Database Reverse Engineering
+- [ ] Template Customization
+- [ ] UI/Configuration Dialog
+- [ ] Relationship Handling
+- [ ] Spring Boot Integration
+- [ ] Testing Support
+- [ ] Other (please specify)
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## Expected Implementation
+If you have ideas about how this feature could be implemented, share them here.
+
+## Impact Assessment
+- Who would benefit from this feature? [e.g., all users, those with complex domain models, etc.]
+- How frequently would this feature be used? [e.g., daily, occasionally, rarely]
+- Would this feature significantly improve productivity or code quality?
+
+## Alternatives
+Have you considered any workarounds or alternative approaches?
+
+## Additional Context
+Add any other context, screenshots, or examples related to the feature request.

@@ -47,7 +47,7 @@ class EntityFromSchemaGenerator(private val project: Project) {
         val code = StringBuilder()
 
         // Package declaration
-        code.append("package $basePackage.domain;\n\n")
+        code.append("package $basePackage.entity;\n\n")
 
         // Imports
         val imports = generateImports(table)
@@ -227,8 +227,8 @@ class EntityFromSchemaGenerator(private val project: Project) {
      * @return File path
      */
     private fun getEntityFilePath(project: Project, entityName: String, basePackage: String): String {
-        val domainPackage = "$basePackage.domain"
-        val packagePath = domainPackage.replace(".", "/")
+        val entityPackage = "$basePackage.entity"
+        val packagePath = entityPackage.replace(".", "/")
 
         val projectPath = project.basePath ?: throw RuntimeException("Project path not found")
         val sourcePath = "src/main/java"

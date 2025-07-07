@@ -13,6 +13,7 @@ import com.intellij.psi.PsiJavaFile
 import com.intellij.openapi.ui.Messages
 import com.enokdev.springapigenerator.generator.impl.*
 import com.enokdev.springapigenerator.model.EntityMetadata
+import com.enokdev.springapigenerator.ui.SecurityConfigDialog
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
@@ -85,6 +86,9 @@ class GenerateSpringCodeAction : AnAction() {
             val selectedComponents = dialog.getSelectedComponents()
             val packageConfig = dialog.getPackageConfig()
 
+            // Déclarer securityConfig ici pour qu'il soit disponible dans tout le scope
+            var securityConfig = dialog.getSecurityConfig()
+
             try {
                 // Check if MapStruct should be added
                 if (dialog.shouldAddMapstruct()) {
@@ -129,6 +133,141 @@ class GenerateSpringCodeAction : AnAction() {
 
                     if (result == Messages.OK) {
                         addSwaggerDependency(project, buildSystemType)
+                    }
+                }
+
+                // Check if Spring Security should be added
+                if (dialog.shouldAddSpringSecurity()) {
+                    val (buildSystemType, dependency) = dialog.getSpringSecurityDependencyInfo()
+                    val result = Messages.showOkCancelDialog(
+                        project,
+                        """
+                        Spring Security n'a pas été détecté dans votre projet. Voulez-vous ajouter Spring Security avec JWT à votre projet?
+                        
+                        Les dépendances suivantes seront nécessaires pour $buildSystemType:
+                        
+                        $dependency
+                        """.trimIndent(),
+                        "Ajouter Spring Security",
+                        "Ajouter",
+                        "Non",
+                        Messages.getQuestionIcon()
+                    )
+
+                    if (result == Messages.OK) {
+                        addSpringSecurityDependency(project, buildSystemType)
+
+                        // Generate security files
+                        val securityConfig = dialog.getSecurityConfig()
+                        if (securityConfig != null) {
+                            WriteCommandAction.runWriteCommandAction(project) {
+                                val securityGenerator = SecurityConfigGenerator()
+
+                                // Generate the main security config
+                                val securityConfigContent = securityGenerator.generate(project, entityMetadata, packageConfig)
+                                val securityConfigPath = securityGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
+                                val securityConfigFile = File(securityConfigPath)
+                                securityConfigFile.parentFile.mkdirs()
+                                securityConfigFile.writeText(securityConfigContent)
+
+                                // Generate User management components
+                                securityGenerator.generateUserModel(project, entityMetadata, packageConfig)
+                                securityGenerator.generateUserRepository(project, entityMetadata, packageConfig)
+                                securityGenerator.generateUserService(project, entityMetadata, packageConfig)
+                                securityGenerator.generateAuthController(project, entityMetadata, packageConfig)
+
+                                // Generate JWT util if needed
+                                if (securityConfig.securityLevel == SecurityConfigGenerator.SecurityLevel.JWT) {
+                                    securityGenerator.generateJwtUtil(project, entityMetadata, packageConfig)
+                                }
+
+                                // Generate user details service if requested
+                                if (securityConfig.generateUserDetailsService) {
+                                    securityGenerator.generateUserDetailsService(project, entityMetadata, packageConfig)
+                                }
+
+                                // Refresh the project view
+                                LocalFileSystem.getInstance().refresh(true)
+
+                                // Show confirmation message
+                                ApplicationManager.getApplication().invokeLater {
+                                    Messages.showInfoMessage(
+                                        project,
+                                        "Spring Security configuration files have been generated successfully.",
+                                        "Spring Security Generated"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Check if GraphQL should be added
+                val graphqlOption = dialog.getGraphQLOption()
+                if (graphqlOption == true) {
+                    WriteCommandAction.runWriteCommandAction(project) {
+                        // Ajouter GraphQL dependencies automatiquement
+                        addGraphQLDependency(project, detectBuildSystemType(project))
+
+                        val graphQLGenerator = GraphQLGenerator()
+
+                        // Generate GraphQL schema
+                        val schemaContent = graphQLGenerator.generateSchema(project, entityMetadata, packageConfig)
+                        val schemaPath = graphQLGenerator.getSchemaFilePath(project, packageConfig)
+                        val schemaFile = File(schemaPath)
+                        schemaFile.parentFile.mkdirs()
+                        schemaFile.writeText(schemaContent)
+
+                        // Generate GraphQL config
+                        val configContent = graphQLGenerator.generateConfig(project, entityMetadata, packageConfig)
+                        val configPath = graphQLGenerator.getConfigFilePath(project, packageConfig)
+                        val configFile = File(configPath)
+                        configFile.parentFile.mkdirs()
+                        configFile.writeText(configContent)
+
+                        // Generate GraphQL controller
+                        val controllerContent = graphQLGenerator.generateController(project, entityMetadata, packageConfig)
+                        val controllerPath = graphQLGenerator.getControllerFilePath(project, entityMetadata, packageConfig)
+                        val controllerFile = File(controllerPath)
+                        controllerFile.parentFile.mkdirs()
+                        controllerFile.writeText(controllerContent)
+
+                        // Toujours générer les fichiers de sécurité pour GraphQL
+                        val securityGenerator = SecurityConfigGenerator()
+
+                        // Generate the main security config
+                        val securityConfigContent = securityGenerator.generate(project, entityMetadata, packageConfig)
+                        val securityConfigPath = securityGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
+                        val securityConfigFile = File(securityConfigPath)
+                        securityConfigFile.parentFile.mkdirs()
+                        securityConfigFile.writeText(securityConfigContent)
+
+                        // Generate User management components
+                        securityGenerator.generateUserModel(project, entityMetadata, packageConfig)
+                        securityGenerator.generateUserRepository(project, entityMetadata, packageConfig)
+                        securityGenerator.generateUserService(project, entityMetadata, packageConfig)
+                        securityGenerator.generateAuthController(project, entityMetadata, packageConfig)
+
+                        // Generate JWT util
+                        securityGenerator.generateJwtUtil(project, entityMetadata, packageConfig)
+
+                        // Generate user details service
+                        securityGenerator.generateUserDetailsService(project, entityMetadata, packageConfig)
+
+                        // Ajouter Spring Security dependencies automatiquement
+                        addSpringSecurityDependency(project, detectBuildSystemType(project))
+
+                        // Refresh the project view
+                        LocalFileSystem.getInstance().refresh(true)
+
+                        // Show confirmation message
+                        ApplicationManager.getApplication().invokeLater {
+                            Messages.showInfoMessage(
+                                project,
+                                "GraphQL files and Security files have been generated successfully.",
+                                "GraphQL and Security Generated"
+                            )
+                        }
                     }
                 }
 
@@ -481,6 +620,215 @@ class GenerateSpringCodeAction : AnAction() {
                 LocalFileSystem.getInstance().refresh(false)
             }
         }
+    }
+
+    /**
+     * Adds Spring Security dependency to the build file
+     */
+    private fun addSpringSecurityDependency(project: Project, buildSystemType: String) {
+        val basePath = project.basePath ?: return
+
+        when (buildSystemType) {
+            "Maven" -> {
+                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
+                if (pomXml.exists()) {
+                    val content = pomXml.readText()
+                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
+                    val dependenciesTag = "<dependencies>"
+                    val index = content.indexOf(dependenciesTag)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesTag.length,
+                            """
+                            
+                            <!-- Spring Security with JWT -->
+                            <dependency>
+                                <groupId>org.springframework.boot</groupId>
+                                <artifactId>spring-boot-starter-security</artifactId>
+                            </dependency>
+                            <dependency>
+                                <groupId>io.jsonwebtoken</groupId>
+                                <artifactId>jjwt-api</artifactId>
+                                <version>0.12.6</version>
+                            </dependency>
+                            <dependency>
+                                <groupId>io.jsonwebtoken</groupId>
+                                <artifactId>jjwt-impl</artifactId>
+                                <version>0.12.6</version>
+                                <scope>runtime</scope>
+                            </dependency>
+                            <dependency>
+                                <groupId>io.jsonwebtoken</groupId>
+                                <artifactId>jjwt-jackson</artifactId>
+                                <version>0.12.6</version>
+                                <scope>runtime</scope>
+                            </dependency>
+                            """
+                        ).toString()
+                        pomXml.writeText(updatedContent)
+                    }
+                }
+            }
+            "Gradle Kotlin" -> {
+                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
+                if (buildGradleKts.exists()) {
+                    val content = buildGradleKts.readText()
+                    val dependenciesBlock = "dependencies {"
+                    val index = content.indexOf(dependenciesBlock)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesBlock.length,
+                            """
+                            
+                            // Spring Security with JWT
+                            implementation("org.springframework.boot:spring-boot-starter-security")
+                            implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+                            runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+                            runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+                            """
+                        ).toString()
+                        buildGradleKts.writeText(updatedContent)
+                    }
+                }
+            }
+            else -> {
+                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
+                if (buildGradle.exists()) {
+                    val content = buildGradle.readText()
+                    val dependenciesBlock = "dependencies {"
+                    val index = content.indexOf(dependenciesBlock)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesBlock.length,
+                            """
+                            
+                            // Spring Security with JWT
+                            implementation 'org.springframework.boot:spring-boot-starter-security'
+                            implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+                            runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+                            runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+                            """
+                        ).toString()
+                        buildGradle.writeText(updatedContent)
+                    }
+                }
+            }
+        }
+
+        // Refresh files in IDE
+        ApplicationManager.getApplication().invokeLater {
+            WriteAction.runAndWait<Throwable> {
+                LocalFileSystem.getInstance().refresh(false)
+            }
+        }
+    }
+
+    /**
+     * Adds GraphQL dependency to the build file
+     */
+    private fun addGraphQLDependency(project: Project, buildSystemType: String) {
+        val basePath = project.basePath ?: return
+
+        when (buildSystemType) {
+            "Maven" -> {
+                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
+                if (pomXml.exists()) {
+                    val content = pomXml.readText()
+                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
+                    val dependenciesTag = "<dependencies>"
+                    val index = content.indexOf(dependenciesTag)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesTag.length,
+                            """
+                            
+                            <!-- Spring GraphQL -->
+                            <dependency>
+                                <groupId>org.springframework.boot</groupId>
+                                <artifactId>spring-boot-starter-graphql</artifactId>
+                            </dependency>
+                            <dependency>
+                                <groupId>org.springframework.graphql</groupId>
+                                <artifactId>spring-graphql-test</artifactId>
+                                <scope>test</scope>
+                            </dependency>
+                            """
+                        ).toString()
+                        pomXml.writeText(updatedContent)
+                    }
+                }
+            }
+            "Gradle Kotlin" -> {
+                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
+                if (buildGradleKts.exists()) {
+                    val content = buildGradleKts.readText()
+                    val dependenciesBlock = "dependencies {"
+                    val index = content.indexOf(dependenciesBlock)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesBlock.length,
+                            """
+                            
+                            // Spring GraphQL
+                            implementation("org.springframework.boot:spring-boot-starter-graphql")
+                            testImplementation("org.springframework.graphql:spring-graphql-test")
+                            """
+                        ).toString()
+                        buildGradleKts.writeText(updatedContent)
+                    }
+                }
+            }
+            else -> {
+                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
+                if (buildGradle.exists()) {
+                    val content = buildGradle.readText()
+                    val dependenciesBlock = "dependencies {"
+                    val index = content.indexOf(dependenciesBlock)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesBlock.length,
+                            """
+                            
+                            // Spring GraphQL
+                            implementation 'org.springframework.boot:spring-boot-starter-graphql'
+                            testImplementation 'org.springframework.graphql:spring-graphql-test'
+                            """
+                        ).toString()
+                        buildGradle.writeText(updatedContent)
+                    }
+                }
+            }
+        }
+
+        // Refresh files in IDE
+        ApplicationManager.getApplication().invokeLater {
+            WriteAction.runAndWait<Throwable> {
+                LocalFileSystem.getInstance().refresh(false)
+            }
+        }
+    }
+
+    /**
+     * Détecte le type de système de build (Maven, Gradle, Gradle Kotlin) utilisé dans le projet
+     *
+     * @param project Le projet IntelliJ
+     * @return Le type de système de build détecté, par défaut "Gradle Groovy"
+     */
+    private fun detectBuildSystemType(project: Project): String {
+        val basePath = project.basePath ?: return "Gradle Groovy"
+
+        // Vérifier si c'est un projet Maven
+        if (File(Paths.get(basePath, "pom.xml").toString()).exists()) {
+            return "Maven"
+        }
+
+        // Vérifier si c'est un projet Gradle Kotlin
+        if (File(Paths.get(basePath, "build.gradle.kts").toString()).exists()) {
+            return "Gradle Kotlin"
+        }
+
+        // Par défaut, considérer comme Gradle Groovy
+        return "Gradle Groovy"
     }
 
     /**

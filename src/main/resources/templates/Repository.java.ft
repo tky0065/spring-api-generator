@@ -1,6 +1,6 @@
 package ${packageName}.repository;
 
-import ${packageName}.domain.${entityName};
+import ${packageName}.entity.${entityName};
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
