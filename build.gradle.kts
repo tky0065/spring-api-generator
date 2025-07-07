@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.enokdev"
-version = "1.0.0"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -37,7 +37,19 @@ intellijPlatform {
             untilBuild.set(provider { null })
         }
         changeNotes.set("""
-            Initial version
+            <h3>1.1.0</h3>
+            <ul>
+                <li><b>Ajout</b>: Support de Spring Security - Génération d'endpoints sécurisés, classes d'authentification et configuration JWT</li>
+                <li><b>Ajout</b>: Support de GraphQL - Génération de schémas et résolveurs GraphQL (types, inputs, queries, mutations)</li>
+                <li><b>Amélioration</b>: Correction de bugs mineurs et optimisations de performance</li>
+            </ul>
+            <h3>1.0.0</h3>
+            <ul>
+                <li>Version initiale du plugin</li>
+                <li>Génération de code Spring Boot (Controller, Service, Repository, DTO, etc.)</li>
+                <li>Support de la génération depuis des entités existantes</li>
+                <li>Support du reverse engineering depuis base de données</li>
+            </ul>
         """.trimIndent())
     }
 

@@ -19,6 +19,8 @@ Spring Boot Code Generator is an IntelliJ IDEA plugin that automatically generat
 - **Swagger Documentation**: Automatically configures OpenAPI documentation
 - **Error Handling**: Global exception handler with proper HTTP status codes
 - **Database Reverse Engineering**: Generate JPA entities from existing database schemas
+- **Spring Security Integration** (New in 1.1.0): Generate JWT-based authentication, user management, and endpoint security
+- **GraphQL Support** (New in 1.1.0): Generate GraphQL schemas, resolvers, types, and mutations from your entities
 
 ## Installation
 
@@ -61,6 +63,35 @@ Spring Boot Code Generator is an IntelliJ IDEA plugin that automatically generat
 4. Click `Generate` to create JPA entities and related components
 
 ![Generate from Database](docs/images/generate-from-db.png)
+
+### Générer une Configuration de Sécurité (Nouveau dans 1.1.0)
+
+1. Cliquez-droit sur votre projet dans le panneau Projet
+2. Sélectionnez `Spring Boot Code Generator` → `Generate Security Configuration`
+3. Dans la boîte de dialogue :
+   - Choisissez le type d'authentification (JWT, Basic Auth, ou OAuth2)
+   - Configurez les options de sécurité (expiration du token, règles CORS, etc.)
+   - Sélectionnez les endpoints à sécuriser
+4. Cliquez sur `Generate` pour créer les composants de sécurité :
+   - Configuration Spring Security
+   - Classes d'authentification et d'autorisation
+   - Gestionnaire de jetons JWT
+   - Endpoints d'authentification (login, register, etc.)
+   - Modèle utilisateur et repository
+
+### Générer une API GraphQL (Nouveau dans 1.1.0)
+
+1. Sélectionnez une ou plusieurs entités JPA dans l'éditeur ou le panneau Projet
+2. Cliquez-droit et sélectionnez `Spring Boot Code Generator` → `Generate GraphQL API`
+3. Dans la boîte de dialogue :
+   - Choisissez les opérations GraphQL à générer (queries, mutations)
+   - Configurez les options de pagination et de filtrage
+   - Personnalisez les noms des types et champs GraphQL
+4. Cliquez sur `Generate` pour créer :
+   - Schéma GraphQL (.graphqls)
+   - Résolveurs GraphQL (Query et Mutation)
+   - Types d'entrée et de sortie
+   - Configuration GraphQL
 
 ## Configuration Options
 

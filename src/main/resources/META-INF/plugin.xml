@@ -8,7 +8,7 @@
     <name>Spring Boot Code Generator</name>
 
     <!-- Plugin version -->
-    <version>1.0.0</version>
+    <version>1.1.0</version>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor email="enokdev.bf@gmail.com" url="https://enokdev-com.vercel.app/">EnokDev</vendor>
@@ -29,6 +29,8 @@
       <li><b>API Documentation</b> - Auto-generated Swagger/OpenAPI documentation</li>
       <li><b>Error Handling</b> - Global exception handler with proper HTTP status codes</li>
       <li><b>Testing Support</b> - JUnit 5 tests with Mockito for all generated components</li>
+      <li><b>Spring Security Integration</b> - JWT authentication, user management, and endpoint security</li>
+      <li><b>GraphQL Support</b> - Schema generation and resolvers for GraphQL APIs</li>
     </ul>
 
     <h3>Benefits:</h3>
@@ -44,7 +46,13 @@
 
     <!-- Short summary displayed as a single line -->
     <change-notes><![CDATA[
-    <h3>Version 1.0.0 (July 2025)</h3>
+    <h3>Version 1.1.0 (Juillet 2025)</h3>
+    <ul>
+      <li><b>Ajout</b>: Support de Spring Security - Génération d'endpoints sécurisés, classes d'authentification et configuration JWT</li>
+      <li><b>Ajout</b>: Support de GraphQL - Génération de schémas et résolveurs GraphQL (types, inputs, queries, mutations)</li>
+      <li><b>Amélioration</b>: Correction de bugs mineurs et optimisations de performance</li>
+    </ul>
+    <h3>Version 1.0.0 (Juillet 2025)</h3>
     <ul>
       <li>Initial release with complete Spring Boot code generation</li>
       <li>Support for JPA entity analysis and database reverse engineering</li>
