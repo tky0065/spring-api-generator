@@ -1,0 +1,47 @@
+package ${packageName}
+
+import ${packageName?keep_before_last(".")}.entity.User
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.stereotype.Repository
+import java.util.Optional
+
+/**
+ * Repository for [User] entity.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Repository
+interface UserRepository : JpaRepository<User, Long> {
+
+    /**
+     * Find a user by username.
+     *
+     * @param username the username to search for
+     * @return the user if found
+     */
+    fun findByUsername(username: String): Optional<User>
+
+    /**
+     * Find a user by email.
+     *
+     * @param email the email to search for
+     * @return the user if found
+     */
+    fun findByEmail(email: String): Optional<User>
+
+    /**
+     * Check if a username already exists.
+     *
+     * @param username the username to check
+     * @return true if the username exists
+     */
+    fun existsByUsername(username: String): Boolean
+
+    /**
+     * Check if an email already exists.
+     *
+     * @param email the email to check
+     * @return true if the email exists
+     */
+    fun existsByEmail(email: String): Boolean
+}

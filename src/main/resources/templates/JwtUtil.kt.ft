@@ -1,0 +1,85 @@
+package ${packageName}
+
+import io.jsonwebtoken.Claims
+import io.jsonwebtoken.Jwts
+import io.jsonwebtoken.SignatureAlgorithm
+import io.jsonwebtoken.security.Keys
+import org.springframework.security.core.GrantedAuthority
+import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.stereotype.Component
+import java.util.*
+import javax.crypto.SecretKey
+
+/**
+ * Utility class for JWT token operations.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Component
+class JwtUtil {
+
+    companion object {
+        // Externalise cette clé en production !
+        private val SECRET_KEY: SecretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512)
+
+        // 5 heures
+        private const val JWT_TOKEN_VALIDITY = 5 * 60 * 60L
+    }
+
+    fun extractUsername(token: String): String {
+        return extractClaim(token) { it.subject }
+    }
+
+    fun extractExpiration(token: String): Date {
+        return extractClaim(token) { it.expiration }
+    }
+
+    fun <T> extractClaim(token: String, claimsResolver: (Claims) -> T): T {
+        val claims = extractAllClaims(token)
+        return claimsResolver(claims)
+    }
+
+    private fun extractAllClaims(token: String): Claims {
+        return try {
+            // Depuis JJWT 0.12.x, il faut utiliser verifyWith() et parseSignedClaims()
+            Jwts.parser()
+                .verifyWith(SECRET_KEY)
+                .build()
+                .parseSignedClaims(token)
+                .payload
+        } catch (e: Exception) {
+            throw RuntimeException("Invalid JWT token", e)
+        }
+    }
+
+    private fun isTokenExpired(token: String): Boolean {
+        return extractExpiration(token).before(Date())
+    }
+
+    fun generateToken(userDetails: UserDetails): String {
+        val claims = HashMap<String, Any>()
+        // Ajoute les rôles dans les claims
+        val roles = userDetails.authorities.map { it.authority }
+        claims["roles"] = roles
+
+        return createToken(claims, userDetails.username)
+    }
+
+    private fun createToken(claims: Map<String, Any>, subject: String): String {
+        val now = Date()
+        val expirationDate = Date(now.time + JWT_TOKEN_VALIDITY * 1000)
+
+        return Jwts.builder()
+            .claims(claims)
+            .subject(subject)
+            .issuedAt(now)
+            .expiration(expirationDate)
+            .signWith(SECRET_KEY)
+            .compact()
+    }
+
+    fun validateToken(token: String, userDetails: UserDetails): Boolean {
+        val username = extractUsername(token)
+        return (username == userDetails.username && !isTokenExpired(token))
+    }
+}

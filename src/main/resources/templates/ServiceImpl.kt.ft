@@ -1,0 +1,99 @@
+package ${packageName}
+
+import org.slf4j.LoggerFactory
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.util.Optional
+import javax.persistence.EntityNotFoundException
+${imports}
+
+/**
+ * Service Implementation for managing ${entityName}.
+ */
+@Service
+@Transactional
+class ${serviceImplName}(
+    private val ${repositoryVarName}: ${repositoryName},
+    private val ${mapperVarName}: ${mapperName}
+) : ${serviceName} {
+
+    private val log = LoggerFactory.getLogger(${serviceImplName}::class.java)
+
+    /**
+     * Save a ${entityName}.
+     *
+     * @param ${entityVarName}DTO the entity to save
+     * @return the persisted entity
+     */
+    override fun save(${entityVarName}DTO: ${dtoName}): ${dtoName} {
+        log.debug("Request to save ${entityName} : {}", ${entityVarName}DTO)
+        var ${entityVarName} = ${mapperVarName}.toEntity(${entityVarName}DTO)
+        ${entityVarName} = ${repositoryVarName}.save(${entityVarName})
+        return ${mapperVarName}.toDto(${entityVarName})
+    }
+
+    /**
+     * Update a ${entityName}.
+     *
+     * @param ${entityVarName}DTO the entity to update
+     * @return the persisted entity
+     */
+    @Transactional
+    override fun update(${entityVarName}DTO: ${dtoName}): ${dtoName} {
+        log.debug("Request to update ${entityName} : {}", ${entityVarName}DTO)
+
+        // Verify the entity exists
+        ${entityVarName}DTO.id?.let { id ->
+            if (!${repositoryVarName}.existsById(id)) {
+                throw EntityNotFoundException("${entityName} not found with id $id")
+            }
+        } ?: throw IllegalArgumentException("Invalid id")
+
+        var ${entityVarName} = ${mapperVarName}.toEntity(${entityVarName}DTO)
+        ${entityVarName} = ${repositoryVarName}.save(${entityVarName})
+        return ${mapperVarName}.toDto(${entityVarName})
+    }
+
+    /**
+     * Get all the ${entityVarName}s.
+     *
+     * @param pageable the pagination information
+     * @return the list of entities
+     */
+    @Transactional(readOnly = true)
+    override fun findAll(pageable: Pageable): Page<${dtoName}> {
+        log.debug("Request to get all ${entityName}s")
+        return ${repositoryVarName}.findAll(pageable)
+            .map(${mapperVarName}::toDto)
+    }
+
+    /**
+     * Get one ${entityName} by id.
+     *
+     * @param id the id of the entity
+     * @return the entity
+     */
+    @Transactional(readOnly = true)
+    override fun findOne(id: ${idType}): ${dtoName} {
+        log.debug("Request to get ${entityName} : {}", id)
+        return ${repositoryVarName}.findById(id)
+            .map(${mapperVarName}::toDto)
+            .orElseThrow { EntityNotFoundException("${entityName} not found with id $id") }
+    }
+
+    /**
+     * Delete the ${entityName} by id.
+     *
+     * @param id the id of the entity
+     */
+    override fun delete(id: ${idType}) {
+        log.debug("Request to delete ${entityName} : {}", id)
+        if (!${repositoryVarName}.existsById(id)) {
+            throw EntityNotFoundException("${entityName} not found with id $id")
+        }
+        ${repositoryVarName}.deleteById(id)
+    }
+${customMethods}
+}

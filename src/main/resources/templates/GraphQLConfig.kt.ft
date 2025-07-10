@@ -1,0 +1,77 @@
+package ${packageName}
+
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.graphql.execution.RuntimeWiringConfigurer
+import graphql.schema.GraphQLScalarType
+import graphql.schema.Coercing
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+/**
+ * Configuration class for GraphQL.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Configuration
+class GraphQLConfig {
+
+    /**
+     * Configure custom scalars for GraphQL.
+     */
+    @Bean
+    fun runtimeWiringConfigurer(): RuntimeWiringConfigurer {
+        return RuntimeWiringConfigurer { wiringBuilder ->
+            wiringBuilder
+                .scalar(dateScalar())
+                .scalar(dateTimeScalar())
+        }
+    }
+
+    /**
+     * Create a custom Date scalar for GraphQL.
+     */
+    private fun dateScalar(): GraphQLScalarType {
+        return GraphQLScalarType.newScalar()
+            .name("Date")
+            .description("Java LocalDate as scalar")
+            .coercing(object : Coercing<LocalDate, String> {
+                override fun serialize(dataFetcherResult: Any): String? {
+                    return (dataFetcherResult as? LocalDate)?.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                }
+
+                override fun parseValue(input: Any): LocalDate? {
+                    return (input as? String)?.let { LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE) }
+                }
+
+                override fun parseLiteral(input: Any): LocalDate? {
+                    return (input as? String)?.let { LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE) }
+                }
+            })
+            .build()
+    }
+
+    /**
+     * Create a custom DateTime scalar for GraphQL.
+     */
+    private fun dateTimeScalar(): GraphQLScalarType {
+        return GraphQLScalarType.newScalar()
+            .name("DateTime")
+            .description("Java LocalDateTime as scalar")
+            .coercing(object : Coercing<LocalDateTime, String> {
+                override fun serialize(dataFetcherResult: Any): String? {
+                    return (dataFetcherResult as? LocalDateTime)?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                }
+
+                override fun parseValue(input: Any): LocalDateTime? {
+                    return (input as? String)?.let { LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }
+                }
+
+                override fun parseLiteral(input: Any): LocalDateTime? {
+                    return (input as? String)?.let { LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }
+                }
+            })
+            .build()
+    }
+}

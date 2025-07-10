@@ -1,6 +1,7 @@
 package com.enokdev.springapigenerator.generator
 
 import com.enokdev.springapigenerator.model.EntityMetadata
+import com.enokdev.springapigenerator.service.ProjectTypeDetectionService
 import com.intellij.openapi.project.Project
 import freemarker.template.Configuration
 import freemarker.template.Template
@@ -13,14 +14,34 @@ import java.nio.file.Paths
  * Abstract base class for template-based code generators.
  */
 abstract class AbstractTemplateCodeGenerator(
-    private val templateName: String
+    private val javaTemplateName: String
 ) : CodeGenerator {
+
+    /**
+     * Get the Kotlin template name based on the Java template name.
+     */
+    private fun getKotlinTemplateName(): String {
+        // Convert .java.ft to .kt.ft
+        return javaTemplateName.replace(".java.ft", ".kt.ft")
+    }
+
+    /**
+     * Get the appropriate template name based on the project type.
+     */
+    private fun getTemplateNameForProject(project: Project): String {
+        return if (ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
+            getKotlinTemplateName()
+        } else {
+            javaTemplateName
+        }
+    }
 
     /**
      * Generate code using the template engine.
      */
     override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val cfg = createFreemarkerConfig()
+        val templateName = getTemplateNameForProject(project)
         val template = cfg.getTemplate(templateName)
         val dataModel = createDataModel(entityMetadata, packageConfig)
 
@@ -77,11 +98,32 @@ abstract class AbstractTemplateCodeGenerator(
     }
 
     /**
-     * Calculate the target source root directory for the generated code.
+     * Get the appropriate file extension (.java or .kt) based on the project type.
      */
-    protected fun getSourceRootDir(project: Project): String {
+    protected fun getFileExtensionForProject(project: Project): String {
+        return if (ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
+            "kt"
+        } else {
+            "java"
+        }
+    }
+
+    /**
+     * Get the appropriate source root directory based on the project type.
+     */
+    protected fun getSourceRootDirForProject(project: Project): String {
         val basePath = project.basePath ?: throw RuntimeException("Project base path not found")
-        return Paths.get(basePath, "src", "main", "java").toString()
+        val language = if (ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) "kotlin" else "java"
+        return Paths.get(basePath, "src", "main", language).toString()
+    }
+
+    /**
+     * Get the appropriate test root directory based on the project type.
+     */
+    protected fun getTestRootDirForProject(project: Project): String {
+        val basePath = project.basePath ?: throw RuntimeException("Project base path not found")
+        val language = if (ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) "kotlin" else "java"
+        return Paths.get(basePath, "src", "test", language).toString()
     }
 
     /**

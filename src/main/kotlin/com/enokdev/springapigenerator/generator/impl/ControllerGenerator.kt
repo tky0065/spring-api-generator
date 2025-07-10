@@ -15,10 +15,11 @@ class ControllerGenerator : AbstractTemplateCodeGenerator("Controller.java.ft") 
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val controllerPackage = packageConfig["controllerPackage"] ?: entityMetadata.controllerPackage
         val controllerDir = controllerPackage.replace(".", "/")
-        val fileName = "${entityMetadata.controllerName}.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.controllerName}.$extension"
         return Paths.get(sourceRoot, controllerDir, fileName).toString()
     }
 

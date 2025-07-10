@@ -1,0 +1,146 @@
+package ${packageName}
+
+import ${packageName?keep_before_last(".")}.entity.User
+import ${packageName?keep_before_last(".")}.repository.UserRepository
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.util.Optional
+
+/**
+ * Service for user management.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Service
+class UserService @Autowired constructor(
+    private val userRepository: UserRepository,
+    private val passwordEncoder: PasswordEncoder
+) {
+
+    /**
+     * Create a new user with an encoded password.
+     *
+     * @param user the user to create
+     * @return the created user
+     * @throws IllegalArgumentException if user with the same username or email already exists
+     */
+    @Transactional
+    fun createUser(user: User): User {
+        if (userRepository.existsByUsername(user.username)) {
+            throw IllegalArgumentException("Username already exists: ${user.username}")
+        }
+
+        if (userRepository.existsByEmail(user.email)) {
+            throw IllegalArgumentException("Email already exists: ${user.email}")
+        }
+
+        // Encode the password before saving
+        user.password = passwordEncoder.encode(user.password)
+
+        // Add default role if no roles are specified
+        if (user.roles.isEmpty()) {
+            user.addRole("ROLE_USER")
+        }
+
+        return userRepository.save(user)
+    }
+
+    /**
+     * Update an existing user.
+     *
+     * @param id the user ID to update
+     * @param userDetails the updated user details
+     * @return the updated user
+     */
+    @Transactional
+    fun updateUser(id: Long, userDetails: User): User {
+        val user = userRepository.findById(id)
+            .orElseThrow { NoSuchElementException("User not found with id $id") }
+
+        // Update the fields
+        user.email = userDetails.email
+        user.fullName = userDetails.fullName
+
+        // Only update password if it's provided and not empty
+        if (userDetails.password.isNotBlank()) {
+            user.password = passwordEncoder.encode(userDetails.password)
+        }
+
+        return userRepository.save(user)
+    }
+
+    /**
+     * Find a user by username.
+     *
+     * @param username the username to search for
+     * @return the user if found
+     */
+    @Transactional(readOnly = true)
+    fun findByUsername(username: String): Optional<User> {
+        return userRepository.findByUsername(username)
+    }
+
+    /**
+     * Find a user by email.
+     *
+     * @param email the email to search for
+     * @return the user if found
+     */
+    @Transactional(readOnly = true)
+    fun findByEmail(email: String): Optional<User> {
+        return userRepository.findByEmail(email)
+    }
+
+    /**
+     * Find a user by ID.
+     *
+     * @param id the user ID to search for
+     * @return the user if found
+     */
+    @Transactional(readOnly = true)
+    fun findById(id: Long): Optional<User> {
+        return userRepository.findById(id)
+    }
+
+    /**
+     * Get all users.
+     *
+     * @return list of all users
+     */
+    @Transactional(readOnly = true)
+    fun findAll(): List<User> {
+        return userRepository.findAll()
+    }
+
+    /**
+     * Delete a user by ID.
+     *
+     * @param id the user ID to delete
+     */
+    @Transactional
+    fun deleteUser(id: Long) {
+        if (userRepository.existsById(id)) {
+            userRepository.deleteById(id)
+        } else {
+            throw NoSuchElementException("User not found with id $id")
+        }
+    }
+
+    /**
+     * Change a user's password.
+     *
+     * @param userId the user ID
+     * @param newPassword the new password
+     * @return the updated user
+     */
+    @Transactional
+    fun changePassword(userId: Long, newPassword: String): User {
+        val user = userRepository.findById(userId)
+            .orElseThrow { NoSuchElementException("User not found with id $userId") }
+
+        user.password = passwordEncoder.encode(newPassword)
+        return userRepository.save(user)
+    }
+}

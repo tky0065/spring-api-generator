@@ -1,0 +1,18 @@
+package ${packageName}
+
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.stereotype.Repository
+${imports}
+
+/**
+ * Repository for the ${entityName} entity
+ */
+@Repository
+interface ${repositoryName} : JpaRepository<${entityName}, ${idType}> {
+    // Custom query methods can be added here
+
+    fun findAllByOrderByIdDesc(pageable: Pageable): Page<${entityName}>
+${customMethods}
+}

@@ -1,0 +1,127 @@
+package ${packageName}
+
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.responses.ApiResponses
+import org.slf4j.LoggerFactory
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.*
+import javax.validation.Valid
+${imports}
+
+/**
+ * REST controller for managing ${entityName}.
+ */
+@RestController
+@RequestMapping("/api")
+class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
+
+    private val log = LoggerFactory.getLogger(${controllerName}::class.java)
+
+    /**
+     * {@code POST  /${entityApiPath}} : Create a new ${entityName}.
+     *
+     * @param ${entityVarName}DTO the ${entityVarName}DTO to create
+     * @return the [ResponseEntity] with status {@code 201 (Created)} and with body the new ${entityVarName}DTO
+     */
+    @PostMapping("/${entityApiPath}")
+    @Operation(summary = "Create a new ${entityName}")
+    @ApiResponses(
+        ApiResponse(responseCode = "201", description = "${entityName} created successfully",
+            content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
+        ApiResponse(responseCode = "400", description = "Invalid input")
+    )
+    fun create${entityName}(@Valid @RequestBody ${entityVarName}DTO: ${dtoName}): ResponseEntity<${dtoName}> {
+        log.debug("REST request to save ${entityName} : {}", ${entityVarName}DTO)
+        if (${entityVarName}DTO.id != null) {
+            return ResponseEntity.badRequest()
+                .body(null)
+        }
+        val result = ${serviceVarName}.save(${entityVarName}DTO)
+        return ResponseEntity
+            .status(HttpStatus.CREATED)
+            .body(result)
+    }
+
+    /**
+     * {@code PUT  /${entityApiPath}} : Updates an existing ${entityName}.
+     *
+     * @param ${entityVarName}DTO the ${entityVarName}DTO to update
+     * @return the [ResponseEntity] with status {@code 200 (OK)} and with body the updated ${entityVarName}DTO
+     */
+    @PutMapping("/${entityApiPath}")
+    @Operation(summary = "Update an existing ${entityName}")
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "${entityName} updated successfully",
+            content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
+        ApiResponse(responseCode = "400", description = "Invalid input"),
+        ApiResponse(responseCode = "404", description = "${entityName} not found")
+    )
+    fun update${entityName}(@Valid @RequestBody ${entityVarName}DTO: ${dtoName}): ResponseEntity<${dtoName}> {
+        log.debug("REST request to update ${entityName} : {}", ${entityVarName}DTO)
+        if (${entityVarName}DTO.id == null) {
+            return ResponseEntity.badRequest().body(null)
+        }
+        val result = ${serviceVarName}.update(${entityVarName}DTO)
+        return ResponseEntity.ok()
+            .body(result)
+    }
+
+    /**
+     * {@code GET  /${entityApiPath}} : get all the ${entityVarName}s.
+     *
+     * @param pageable the pagination information
+     * @return the [ResponseEntity] with status {@code 200 (OK)} and the list of ${entityVarName}s in body
+     */
+    @GetMapping("/${entityApiPath}")
+    @Operation(summary = "Get all ${entityName}s")
+    fun getAll${entityName}s(pageable: Pageable): ResponseEntity<Page<${dtoName}>> {
+        log.debug("REST request to get a page of ${entityName}s")
+        val page = ${serviceVarName}.findAll(pageable)
+        return ResponseEntity.ok().body(page)
+    }
+
+    /**
+     * {@code GET  /${entityApiPath}/{id}} : get the "id" ${entityName}.
+     *
+     * @param id the id of the ${entityVarName}DTO to retrieve
+     * @return the [ResponseEntity] with status {@code 200 (OK)} and with body the ${entityVarName}DTO,
+     * or with status {@code 404 (Not Found)}
+     */
+    @GetMapping("/${entityApiPath}/{id}")
+    @Operation(summary = "Get a specific ${entityName} by id")
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "${entityName} found",
+            content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
+        ApiResponse(responseCode = "404", description = "${entityName} not found")
+    )
+    fun get${entityName}(@PathVariable id: ${idType}): ResponseEntity<${dtoName}> {
+        log.debug("REST request to get ${entityName} : {}", id)
+        val ${entityVarName}DTO = ${serviceVarName}.findOne(id)
+        return ResponseEntity.ok().body(${entityVarName}DTO)
+    }
+
+    /**
+     * {@code DELETE  /${entityApiPath}/{id}} : delete the "id" ${entityName}.
+     *
+     * @param id the id of the ${entityVarName}DTO to delete
+     * @return the [ResponseEntity] with status {@code 204 (NO_CONTENT)}
+     */
+    @DeleteMapping("/${entityApiPath}/{id}")
+    @Operation(summary = "Delete a ${entityName}")
+    @ApiResponses(
+        ApiResponse(responseCode = "204", description = "${entityName} deleted successfully"),
+        ApiResponse(responseCode = "404", description = "${entityName} not found")
+    )
+    fun delete${entityName}(@PathVariable id: ${idType}): ResponseEntity<Void> {
+        log.debug("REST request to delete ${entityName} : {}", id)
+        ${serviceVarName}.delete(id)
+        return ResponseEntity.noContent().build()
+    }
+${customMethods}
+}

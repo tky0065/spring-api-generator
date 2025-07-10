@@ -15,10 +15,11 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator("Repository.java.ft") 
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val repositoryPackage = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
         val repositoryDir = repositoryPackage.replace(".", "/")
-        val fileName = "${entityMetadata.repositoryName}.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.repositoryName}.$extension"
         return Paths.get(sourceRoot, repositoryDir, fileName).toString()
     }
 

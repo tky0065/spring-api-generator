@@ -1,0 +1,51 @@
+package ${packageName}
+
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+${imports}
+
+/**
+ * Service interface for managing ${entityName}s
+ */
+interface ${serviceName} {
+
+    /**
+     * Save a ${entityName}.
+     *
+     * @param ${entityVarName}DTO the entity to save
+     * @return the persisted entity
+     */
+    fun save(${entityVarName}DTO: ${dtoName}): ${dtoName}
+
+    /**
+     * Updates a ${entityName}.
+     *
+     * @param ${entityVarName}DTO the entity to update
+     * @return the persisted entity
+     */
+    fun update(${entityVarName}DTO: ${dtoName}): ${dtoName}
+
+    /**
+     * Get all the ${entityVarName}s.
+     *
+     * @param pageable the pagination information
+     * @return the list of entities
+     */
+    fun findAll(pageable: Pageable): Page<${dtoName}>
+
+    /**
+     * Get the "${entityVarName}" by id.
+     *
+     * @param id the id of the entity
+     * @return the entity
+     */
+    fun findOne(id: ${idType}): ${dtoName}
+
+    /**
+     * Delete the "${entityVarName}" by id.
+     *
+     * @param id the id of the entity
+     */
+    fun delete(id: ${idType})
+${customMethods}
+}

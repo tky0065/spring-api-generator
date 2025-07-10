@@ -1,0 +1,86 @@
+package ${packageName}
+
+import jakarta.servlet.FilterChain
+import jakarta.servlet.ServletException
+import jakarta.servlet.http.HttpServletRequest
+import jakarta.servlet.http.HttpServletResponse
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
+import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.web.filter.OncePerRequestFilter
+import java.io.IOException
+
+/**
+ * Spring Security configuration.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+class SecurityConfig(private val jwtUtil: JwtUtil) {
+
+    @Bean
+    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .csrf { it.disable() }
+            .authorizeHttpRequests { authorize ->
+                authorize
+                    // Public endpoints
+                    .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                    // Secure all other endpoints
+                    .anyRequest().authenticated()
+            }
+            .sessionManagement { session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            }
+            .addFilterBefore(JwtAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter::class.java)
+
+        return http.build()
+    }
+
+    @Bean
+    fun passwordEncoder(): PasswordEncoder {
+        return BCryptPasswordEncoder()
+    }
+
+    /**
+     * JWT Authentication filter class
+     */
+    private class JwtAuthenticationFilter(private val jwtUtil: JwtUtil) : OncePerRequestFilter() {
+
+        @Throws(ServletException::class, IOException::class)
+        override fun doFilterInternal(
+            request: HttpServletRequest,
+            response: HttpServletResponse,
+            filterChain: FilterChain
+        ) {
+            val authHeader = request.getHeader("Authorization")
+
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                val jwt = authHeader.substring(7)
+                val username = jwtUtil.extractUsername(jwt)
+
+                if (username != null && SecurityContextHolder.getContext().authentication == null) {
+                    val userDetails = userDetailsService.loadUserByUsername(username)
+
+                    if (jwtUtil.validateToken(jwt, userDetails)) {
+                        val authToken = UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.authorities
+                        )
+                        authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
+                        SecurityContextHolder.getContext().authentication = authToken
+                    }
+                }
+            }
+            filterChain.doFilter(request, response)
+        }
+    }
+}

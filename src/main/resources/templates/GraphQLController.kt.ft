@@ -1,0 +1,147 @@
+package ${packageName}.controller
+
+import ${packageName}.entity.${className}
+import ${packageName}.dto.${className}DTO
+import ${packageName}.service.${className}Service
+import ${packageName}.mapper.${className}Mapper
+import org.springframework.graphql.data.method.annotation.Argument
+import org.springframework.graphql.data.method.annotation.QueryMapping
+import org.springframework.graphql.data.method.annotation.MutationMapping
+import org.springframework.stereotype.Controller
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.domain.PageRequest
+
+/**
+ * GraphQL Controller for ${className} entity.
+ * Contains both Query and Mutation resolvers.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Controller
+class ${className}GraphQLController(
+    private val ${entityNameLower}Service: ${className}Service,
+    private val ${entityNameLower}Mapper: ${className}Mapper
+) {
+
+    //---------- QUERIES ----------//
+
+    /**
+     * Get a ${className} by ID
+     *
+     * @param id The ID of the ${className}
+     * @return The ${className} if found, null otherwise
+     */
+    @QueryMapping
+    fun get${className}(@Argument id: ${idType}): ${className}? {
+        return try {
+            val dto = ${entityNameLower}Service.findOne(id)
+            ${entityNameLower}Mapper.toEntity(dto)
+        } catch (e: RuntimeException) {
+            null
+        }
+    }
+
+    /**
+     * Get all ${className}s with pagination
+     *
+     * @param page The page number (zero-based)
+     * @param size The page size
+     * @return A list of ${className}s
+     */
+    @QueryMapping
+    fun getAll${className}s(@Argument page: Int?, @Argument size: Int?): List<${className}> {
+        // Since our service doesn't support pagination directly, we'll need to handle it manually
+        val allDtos = ${entityNameLower}Service.findAll()
+
+        // Apply manual pagination
+        val pageVal = page ?: 0
+        val sizeVal = size ?: 10
+        val startIndex = pageVal * sizeVal
+        val endIndex = minOf(startIndex + sizeVal, allDtos.size)
+
+        // If startIndex is beyond list size, return empty list
+        return if (startIndex >= allDtos.size) {
+            emptyList()
+        } else {
+            allDtos.subList(startIndex, endIndex)
+                .map { ${entityNameLower}Mapper.toEntity(it) }
+        }
+    }
+
+    //---------- MUTATIONS ----------//
+
+    /**
+     * Create a new ${className}
+     *
+     * @param input The ${className} data
+     * @return The created ${className}
+     */
+    @MutationMapping
+    fun create${className}(@Argument input: ${className}Input): ${className} {
+        val dto = ${className}DTO().apply {
+            // Map input fields to DTO
+            <#list fields as field>
+            <#if field.name != "id">
+            this.${field.name} = input.${field.name}
+            </#if>
+            </#list>
+        }
+
+        val savedDto = ${entityNameLower}Service.save(dto)
+        return ${entityNameLower}Mapper.toEntity(savedDto)
+    }
+
+    /**
+     * Update an existing ${className}
+     *
+     * @param id The ID of the ${className} to update
+     * @param input The updated ${className} data
+     * @return The updated ${className}
+     */
+    @MutationMapping
+    fun update${className}(@Argument id: ${idType}, @Argument input: ${className}Input): ${className}? {
+        try {
+            // First fetch the existing entity
+            val existingDto = ${entityNameLower}Service.findOne(id)
+
+            // Update fields from input
+            <#list fields as field>
+            <#if field.name != "id">
+            existingDto.${field.name} = input.${field.name}
+            </#if>
+            </#list>
+
+            val updatedDto = ${entityNameLower}Service.update(existingDto)
+            return ${entityNameLower}Mapper.toEntity(updatedDto)
+        } catch (e: RuntimeException) {
+            return null
+        }
+    }
+
+    /**
+     * Delete a ${className}
+     *
+     * @param id The ID of the ${className} to delete
+     * @return True if deleted, false otherwise
+     */
+    @MutationMapping
+    fun delete${className}(@Argument id: ${idType}): Boolean {
+        return try {
+            ${entityNameLower}Service.delete(id)
+            true
+        } catch (e: RuntimeException) {
+            false
+        }
+    }
+
+    /**
+     * Input type for ${className} mutations
+     */
+    data class ${className}Input(
+        <#list fields as field>
+        <#if field.name != "id">
+        val ${field.name}: ${field.simpleTypeName}<#if field.nullable>?</#if><#if field_has_next>,</#if>
+        </#if>
+        </#list>
+    )
+}

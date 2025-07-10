@@ -16,10 +16,11 @@ class MapperGenerator : AbstractTemplateCodeGenerator("Mapper.java.ft") {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val mapperPackage = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
         val mapperDir = mapperPackage.replace(".", "/")
-        val fileName = "${entityMetadata.mapperName}.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.mapperName}.$extension"
         return Paths.get(sourceRoot, mapperDir, fileName).toString()
     }
 

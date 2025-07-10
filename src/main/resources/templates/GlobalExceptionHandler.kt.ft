@@ -1,0 +1,89 @@
+package ${exceptionPackage}
+
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
+import org.springframework.validation.FieldError
+import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.annotation.ControllerAdvice
+import org.springframework.web.bind.annotation.ExceptionHandler
+import java.time.LocalDateTime
+import java.util.HashMap
+import java.util.NoSuchElementException
+
+/**
+ * Global exception handler for the application.
+ * Provides consistent error responses across all controllers.
+ */
+@ControllerAdvice
+class GlobalExceptionHandler {
+
+    /**
+     * Handle resource not found exception.
+     *
+     * @param ex the exception
+     * @return the error response
+     */
+    @ExceptionHandler(NoSuchElementException::class)
+    fun handleResourceNotFoundException(ex: NoSuchElementException): ResponseEntity<ErrorResponse> {
+        val errorResponse = ErrorResponse(
+            HttpStatus.NOT_FOUND.value(),
+            "Resource not found",
+            ex.message ?: "No details available",
+            LocalDateTime.now()
+        )
+        return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
+    }
+
+    /**
+     * Handle validation errors.
+     *
+     * @param ex the exception
+     * @return the error response with validation details
+     */
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleValidationExceptions(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
+        val errors = HashMap<String, String>()
+        ex.bindingResult.allErrors.forEach { error ->
+            val fieldName = (error as FieldError).field
+            val errorMessage = error.defaultMessage ?: "Invalid value"
+            errors[fieldName] = errorMessage
+        }
+
+        val errorResponse = ErrorResponse(
+            HttpStatus.BAD_REQUEST.value(),
+            "Validation error",
+            "There were validation errors",
+            LocalDateTime.now(),
+            errors
+        )
+        return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
+    }
+
+    /**
+     * Handle general exceptions.
+     *
+     * @param ex the exception
+     * @return the error response
+     */
+    @ExceptionHandler(Exception::class)
+    fun handleGeneralException(ex: Exception): ResponseEntity<ErrorResponse> {
+        val errorResponse = ErrorResponse(
+            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+            "Server error",
+            ex.message ?: "An unexpected error occurred",
+            LocalDateTime.now()
+        )
+        return ResponseEntity(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR)
+    }
+
+    /**
+     * Error response class for standardized error responses.
+     */
+    data class ErrorResponse(
+        val status: Int,
+        val error: String,
+        val message: String,
+        val timestamp: LocalDateTime,
+        val details: Map<String, String>? = null
+    )
+}

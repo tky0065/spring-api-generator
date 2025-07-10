@@ -1,0 +1,21 @@
+// Security annotations for ${entityName}Controller
+@PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+class ${entityName}Controller {
+
+    // Read operations - accessible to users with ADMIN or USER roles
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    fun findById(...): ${entityName}Dto { ... }
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
+    fun findAll(...): Page<${entityName}Dto> { ... }
+
+    // Write operations - accessible only to users with ADMIN role
+    @PreAuthorize("hasRole('ADMIN')")
+    fun create(...): ${entityName}Dto { ... }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    fun update(...): ${entityName}Dto { ... }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    fun delete(...) { ... }
+}

@@ -1,0 +1,135 @@
+package ${packageName}
+
+import ${packageName?keep_before_last(".")}.config.security.JwtUtil
+import ${packageName?keep_before_last(".")}.entity.User
+import ${packageName?keep_before_last(".")}.service.UserService
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
+import org.springframework.security.authentication.AuthenticationManager
+import org.springframework.security.authentication.BadCredentialsException
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.Authentication
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.web.bind.annotation.*
+
+import jakarta.validation.Valid
+import java.security.Principal
+import java.util.HashMap
+
+/**
+ * Controller for handling authentication requests.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@RestController
+@RequestMapping("/api/auth")
+class AuthController(
+    private val authenticationManager: AuthenticationManager,
+    private val userService: UserService,
+    private val jwtUtil: JwtUtil
+) {
+
+    /**
+     * Login endpoint to authenticate users and generate JWT token.
+     *
+     * @param loginRequest login credentials
+     * @return JWT token if authentication successful
+     */
+    @PostMapping("/login")
+    fun login(@Valid @RequestBody loginRequest: LoginRequest): ResponseEntity<*> {
+        return try {
+            val authentication = authenticationManager.authenticate(
+                UsernamePasswordAuthenticationToken(loginRequest.username, loginRequest.password)
+            )
+
+            SecurityContextHolder.getContext().authentication = authentication
+            val userDetails = authentication.principal as UserDetails
+            val jwt = jwtUtil.generateToken(userDetails)
+
+            val user = userService.findByUsername(userDetails.username)
+                ?: throw IllegalStateException("User not found after authentication")
+
+            val response = HashMap<String, Any>()
+            response["token"] = jwt
+            response["user"] = mapUserToDto(user)
+
+            ResponseEntity.ok(response)
+        } catch (e: BadCredentialsException) {
+            ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password")
+        }
+    }
+
+    /**
+     * Register a new user.
+     *
+     * @param registerRequest user registration details
+     * @return the created user
+     */
+    @PostMapping("/register")
+    fun register(@Valid @RequestBody registerRequest: RegisterRequest): ResponseEntity<*> {
+        return try {
+            val user = User().apply {
+                username = registerRequest.username
+                password = registerRequest.password
+                email = registerRequest.email
+                fullName = registerRequest.fullName
+                addRole("ROLE_USER")
+            }
+
+            val createdUser = userService.createUser(user)
+            ResponseEntity.status(HttpStatus.CREATED).body(mapUserToDto(createdUser))
+        } catch (e: IllegalArgumentException) {
+            ResponseEntity.badRequest().body(e.message)
+        }
+    }
+
+    /**
+     * Get the currently authenticated user information.
+     *
+     * @param principal the currently authenticated principal
+     * @return the user details
+     */
+    @GetMapping("/me")
+    fun getCurrentUser(principal: Principal): ResponseEntity<*> {
+        val user = userService.findByUsername(principal.name)
+            ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found")
+
+        return ResponseEntity.ok(mapUserToDto(user))
+    }
+
+    /**
+     * Convert a User entity to a simplified DTO for API responses.
+     *
+     * @param user the user entity
+     * @return map with user details
+     */
+    private fun mapUserToDto(user: User): Map<String, Any?> {
+        val userDto = HashMap<String, Any?>()
+        userDto["id"] = user.id
+        userDto["username"] = user.username
+        userDto["email"] = user.email
+        userDto["fullName"] = user.fullName
+        userDto["roles"] = user.roles
+        return userDto
+    }
+
+    /**
+     * Data class for login requests.
+     */
+    data class LoginRequest(
+        val username: String,
+        val password: String
+    )
+
+    /**
+     * Data class for registration requests.
+     */
+    data class RegisterRequest(
+        val username: String,
+        val password: String,
+        val email: String,
+        val fullName: String
+    )
+}

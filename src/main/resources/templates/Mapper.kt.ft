@@ -1,0 +1,33 @@
+package ${packageName}
+
+import org.mapstruct.*
+import org.springframework.data.domain.Page
+${imports}
+
+/**
+ * Mapper for the entity ${entityName} and its DTO ${dtoName}.
+ */
+@Mapper(componentModel = "spring", uses = [])
+interface ${mapperName} {
+
+    @Mapping(target = "id", source = "id")
+${mappings}
+
+    fun toDto(${entityVarName}: ${entityName}): ${dtoName}
+
+    @InheritInverseConfiguration
+    fun toEntity(${entityVarName}DTO: ${dtoName}): ${entityName}
+
+    /**
+     * Convert a list of entities to a list of DTOs
+     */
+    fun toDto(${entityVarName}List: List<${entityName}>): List<${dtoName}> =
+        ${entityVarName}List.map { toDto(it) }
+
+    /**
+     * Convert a page of entities to a page of DTOs
+     */
+    fun toDto(page: Page<${entityName}>): Page<${dtoName}> =
+        page.map { toDto(it) }
+${customMethods}
+}

@@ -15,11 +15,12 @@ class GlobalExceptionHandlerGenerator : AbstractTemplateCodeGenerator("GlobalExc
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val exceptionPackage = packageConfig["exceptionPackage"] ?: "$basePackage.exception"
         val exceptionDir = exceptionPackage.replace(".", "/")
-        return Paths.get(sourceRoot, exceptionDir, "GlobalExceptionHandler.java").toString()
+        val extension = getFileExtensionForProject(project)
+        return Paths.get(sourceRoot, exceptionDir, "GlobalExceptionHandler.$extension").toString()
     }
 
     override fun createDataModel(

@@ -19,10 +19,11 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val servicePackage = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
         val serviceDir = servicePackage.replace(".", "/")
-        val fileName = "${entityMetadata.serviceName}.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.serviceName}.$extension"
         return Paths.get(sourceRoot, serviceDir, fileName).toString()
     }
 
@@ -196,11 +197,12 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
             entityMetadata: EntityMetadata,
             packageConfig: Map<String, String>
         ): String {
-            val sourceRoot = getSourceRootDir(project)
+            val sourceRoot = getSourceRootDirForProject(project)
             val serviceImplPackage = packageConfig["serviceImplPackage"]
                 ?: "${entityMetadata.servicePackage}.impl"
             val serviceImplDir = serviceImplPackage.replace(".", "/")
-            val fileName = "${entityMetadata.serviceImplName}.java"
+            val extension = getFileExtensionForProject(project)
+            val fileName = "${entityMetadata.serviceImplName}.$extension"
             return Paths.get(sourceRoot, serviceImplDir, fileName).toString()
         }
 

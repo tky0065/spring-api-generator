@@ -1,0 +1,14 @@
+package ${packageName}
+
+import java.time.LocalDateTime
+import javax.validation.constraints.*
+${imports}
+
+/**
+ * DTO for the ${entityName} entity
+ */
+data class ${dtoName}(
+${fields}
+) {
+    // Custom methods can be added here
+}

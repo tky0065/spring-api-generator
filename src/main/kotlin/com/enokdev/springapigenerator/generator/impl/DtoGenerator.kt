@@ -18,10 +18,11 @@ class DtoGenerator : AbstractTemplateCodeGenerator("DTO.java.ft") {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val dtoPackage = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
         val dtoDir = dtoPackage.replace(".", "/")
-        val fileName = "${entityMetadata.className}DTO.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.className}DTO.$extension"
         return Paths.get(sourceRoot, dtoDir, fileName).toString()
     }
 

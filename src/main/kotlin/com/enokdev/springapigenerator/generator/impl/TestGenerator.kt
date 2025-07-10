@@ -15,12 +15,11 @@ class TestGenerator : AbstractTemplateCodeGenerator("Test.java.ft") {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
-        // Tests go to src/test/java
-        val testRoot = sourceRoot.replace("main", "test")
+        val testRoot = getTestRootDirForProject(project)
         val servicePackage = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
         val serviceDir = servicePackage.replace(".", "/")
-        val fileName = "${entityMetadata.serviceName}Test.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.serviceName}Test.$extension"
         return Paths.get(testRoot, serviceDir, fileName).toString()
     }
 

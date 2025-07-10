@@ -1,0 +1,111 @@
+package ${packageName}
+
+import jakarta.persistence.*
+
+/**
+ * User entity for authentication and authorization.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Entity
+@Table(name = "users")
+class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
+
+    @Column(unique = true, nullable = false)
+    var username: String = ""
+
+    @Column(nullable = false)
+    var password: String = ""
+
+    @Column(nullable = false, unique = true)
+    var email: String = ""
+
+    @Column(nullable = false)
+    var fullName: String = ""
+
+    @Column(nullable = false)
+    var enabled: Boolean = true
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_roles", joinColumns = [JoinColumn(name = "user_id")])
+    @Column(name = "role")
+    var roles: MutableSet<String> = HashSet()
+
+    // Constructors
+    constructor()
+
+    constructor(username: String, password: String, email: String, fullName: String) {
+        this.username = username
+        this.password = password
+        this.email = email
+        this.fullName = fullName
+    }
+
+    // Utility methods
+
+    /**
+     * Add a role to the user.
+     *
+     * @param role the role to add
+     */
+    fun addRole(role: String) {
+        roles.add(role)
+    }
+
+    /**
+     * Remove a role from the user.
+     *
+     * @param role the role to remove
+     */
+    fun removeRole(role: String) {
+        roles.remove(role)
+    }
+
+    /**
+     * Check if the user has a specific role.
+     *
+     * @param role the role to check
+     * @return true if the user has the role, false otherwise
+     */
+    fun hasRole(role: String): Boolean {
+        return roles.contains(role)
+    }
+
+    /**
+     * Check if the user has any of the specified roles.
+     *
+     * @param roleList the roles to check
+     * @return true if the user has any of the roles, false otherwise
+     */
+    fun hasAnyRole(vararg roleList: String): Boolean {
+        return roleList.any { hasRole(it) }
+    }
+
+    /**
+     * Check if the user has all of the specified roles.
+     *
+     * @param roleList the roles to check
+     * @return true if the user has all of the roles, false otherwise
+     */
+    fun hasAllRoles(vararg roleList: String): Boolean {
+        return roleList.all { hasRole(it) }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is User) return false
+        return id != null && id == other.id
+    }
+
+    override fun hashCode(): Int {
+        return id?.hashCode() ?: 0
+    }
+
+    override fun toString(): String {
+        return "User(id=$id, username='$username', email='$email', fullName='$fullName', roles=$roles)"
+    }
+}

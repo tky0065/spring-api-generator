@@ -1,0 +1,39 @@
+package ${packageName}
+
+import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.security.core.userdetails.User
+import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.security.core.userdetails.UserDetailsService
+import org.springframework.security.core.userdetails.UsernameNotFoundException
+import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.stereotype.Service
+
+/**
+ * Custom implementation of UserDetailsService.
+ * In a real application, this would load user data from a database.
+ *
+ * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ */
+@Service
+class CustomUserDetailsService(private val passwordEncoder: PasswordEncoder) : UserDetailsService {
+
+    private val users: MutableMap<String, UserDetails> = HashMap()
+
+    init {
+        // Initialize with a test user - replace this with your user repository in a real application
+        users["admin"] = createUser("admin", "admin", "ADMIN", "USER")
+        users["user"] = createUser("user", "user", "USER")
+    }
+
+    override fun loadUserByUsername(username: String): UserDetails {
+        return users[username] ?: throw UsernameNotFoundException("User not found: $username")
+    }
+
+    private fun createUser(username: String, password: String, vararg roles: String): UserDetails {
+        return User(
+            username,
+            passwordEncoder.encode(password),
+            roles.map { SimpleGrantedAuthority("ROLE_$it") }
+        )
+    }
+}

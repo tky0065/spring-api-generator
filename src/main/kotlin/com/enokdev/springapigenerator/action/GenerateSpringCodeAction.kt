@@ -39,32 +39,43 @@ class GenerateSpringCodeAction : AnAction() {
         val project = e.project ?: return
         val psiFile = e.getData(CommonDataKeys.PSI_FILE) ?: return
 
-        if (psiFile !is PsiJavaFile) {
-            Messages.showErrorDialog(
-                project,
-                "Please select a Java file containing a JPA entity.",
-                "Wrong File Type"
-            )
-            return
-        }
-
-        val classes = psiFile.classes
-        if (classes.isEmpty()) {
-            Messages.showErrorDialog(
-                project,
-                "No classes found in the selected file.",
-                "No Class Found"
-            )
-            return
-        }
-
-        // Try to find an entity class in the file
+        // Accepter à la fois les fichiers Java et Kotlin
         val entityDetectionService = EntityDetectionService(project)
-        val entityClass = ReadAction.compute<PsiClass?, Throwable> {
-            classes.find { entityDetectionService.isJpaEntity(it) }
+        val psiClass = when {
+            psiFile is PsiJavaFile -> {
+                val classes = psiFile.classes
+                if (classes.isEmpty()) {
+                    Messages.showErrorDialog(
+                        project,
+                        "No classes found in the selected file.",
+                        "No Class Found"
+                    )
+                    return
+                }
+
+                // Try to find an entity class in the file
+                ReadAction.compute<PsiClass?, Throwable> {
+                    classes.find { entityDetectionService.isJpaEntity(it) }
+                }
+            }
+            psiFile.name.endsWith(".kt") -> {
+                // Pour les fichiers Kotlin, il faut vérifier les classes Kotlin
+                ReadAction.compute<PsiClass?, Throwable> {
+                    val classes = psiFile.children.filterIsInstance<PsiClass>()
+                    classes.find { entityDetectionService.isJpaEntity(it) }
+                }
+            }
+            else -> {
+                Messages.showErrorDialog(
+                    project,
+                    "Please select a Java or Kotlin file containing a JPA entity.",
+                    "Wrong File Type"
+                )
+                return
+            }
         }
 
-        if (entityClass == null) {
+        if (psiClass == null) {
             Messages.showErrorDialog(
                 project,
                 "No JPA entity found in the selected file. Make sure the class has @Entity and @Id annotations.",
@@ -76,7 +87,7 @@ class GenerateSpringCodeAction : AnAction() {
         // Analyze the entity and extract metadata
         val entityAnalyzer = EntityAnalyzer()
         val entityMetadata = ReadAction.compute<EntityMetadata, Throwable> {
-            entityAnalyzer.analyzeEntity(entityClass)
+            entityAnalyzer.analyzeEntity(psiClass)
         }
 
         // Show configuration dialog
@@ -962,8 +973,9 @@ class GenerateSpringCodeAction : AnAction() {
         val project = e.project
         val psiFile = e.getData(CommonDataKeys.PSI_FILE)
 
-        // Enable only for Java files in a project
-        e.presentation.isEnabledAndVisible = project != null && psiFile is PsiJavaFile
+        // Enable for Java and Kotlin files in a project
+        e.presentation.isEnabledAndVisible = project != null &&
+            (psiFile is PsiJavaFile || (psiFile != null && psiFile.name.endsWith(".kt")))
     }
 
     /**

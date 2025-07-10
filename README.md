@@ -21,6 +21,7 @@ Spring Boot Code Generator is an IntelliJ IDEA plugin that automatically generat
 - **Database Reverse Engineering**: Generate JPA entities from existing database schemas
 - **Spring Security Integration** (New in 1.1.0): Generate JWT-based authentication, user management, and endpoint security
 - **GraphQL Support** (New in 1.1.0): Generate GraphQL schemas, resolvers, types, and mutations from your entities
+- **Kotlin Support** (New in 1.2.0): Automatic detection of Kotlin projects and generation of idiomatic Kotlin code
 
 ## Installation
 

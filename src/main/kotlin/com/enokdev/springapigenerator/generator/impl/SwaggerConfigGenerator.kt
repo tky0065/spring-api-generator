@@ -10,17 +10,53 @@ import java.nio.file.Paths
  */
 class SwaggerConfigGenerator : AbstractTemplateCodeGenerator("SwaggerConfig.java.ft") {
 
+    companion object {
+        // Templates Java et Kotlin
+        const val SWAGGER_CONFIG_TEMPLATE_JAVA = "SwaggerConfig.java.ft"
+        const val SWAGGER_CONFIG_TEMPLATE_KOTLIN = "SwaggerConfig.kt.ft"
+    }
+
+    /**
+     * Détermine le template à utiliser en fonction du type de projet.
+     */
+    private fun getSwaggerConfigTemplate(project: Project): String {
+        return if (com.enokdev.springapigenerator.service.ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
+            SWAGGER_CONFIG_TEMPLATE_KOTLIN
+        } else {
+            SWAGGER_CONFIG_TEMPLATE_JAVA
+        }
+    }
+
     override fun getTargetFilePath(
         project: Project,
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val configPackage = packageConfig["configPackage"] ?: "$basePackage.config"
         val configDir = configPackage.replace(".", "/")
-        val fileName = "SwaggerConfig.java"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "SwaggerConfig.$extension"
         return Paths.get(sourceRoot, configDir, fileName).toString()
+    }
+
+    /**
+     * Generate code using the template engine.
+     */
+    override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        val cfg = createFreemarkerConfig()
+        val template = cfg.getTemplate(getSwaggerConfigTemplate(project))
+        val dataModel = createDataModel(entityMetadata, packageConfig)
+
+        val writer = java.io.StringWriter()
+        try {
+            template.process(dataModel, writer)
+        } catch (e: freemarker.template.TemplateException) {
+            throw RuntimeException("Error processing template: ${e.message}", e)
+        }
+
+        return writer.toString()
     }
 
     override fun createDataModel(

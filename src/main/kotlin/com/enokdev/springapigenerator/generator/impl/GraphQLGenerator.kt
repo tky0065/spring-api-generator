@@ -21,8 +21,10 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
 
     companion object {
         const val GRAPHQL_SCHEMA_TEMPLATE = "GraphQLSchema.graphqls.ft"
-        const val GRAPHQL_CONTROLLER_TEMPLATE = "GraphQLController.java.ft"
-        const val GRAPHQL_CONFIG_TEMPLATE = "GraphQLConfig.java.ft"
+        const val GRAPHQL_CONTROLLER_TEMPLATE_JAVA = "GraphQLController.java.ft"
+        const val GRAPHQL_CONTROLLER_TEMPLATE_KOTLIN = "GraphQLController.kt.ft"
+        const val GRAPHQL_CONFIG_TEMPLATE_JAVA = "GraphQLConfig.java.ft"
+        const val GRAPHQL_CONFIG_TEMPLATE_KOTLIN = "GraphQLConfig.kt.ft"
     }
 
     /**
@@ -34,6 +36,7 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
      * @return File path where the GraphQL schema should be saved
      */
     override fun getTargetFilePath(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        // Les schémas GraphQL sont placés dans les ressources, indépendamment du langage du projet
         val resourceRoot = getResourceRootDir(project)
         return Paths.get(resourceRoot, "graphql", "${entityMetadata.entityNameLower}.graphqls").toString()
     }
@@ -113,20 +116,43 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
     }
 
     /**
+     * Détermine le template à utiliser en fonction du type de projet.
+     */
+    private fun getControllerTemplate(project: Project): String {
+        return if (com.enokdev.springapigenerator.service.ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
+            GRAPHQL_CONTROLLER_TEMPLATE_KOTLIN
+        } else {
+            GRAPHQL_CONTROLLER_TEMPLATE_JAVA
+        }
+    }
+
+    /**
+     * Détermine le template de configuration à utiliser en fonction du type de projet.
+     */
+    private fun getConfigTemplate(project: Project): String {
+        return if (com.enokdev.springapigenerator.service.ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
+            GRAPHQL_CONFIG_TEMPLATE_KOTLIN
+        } else {
+            GRAPHQL_CONFIG_TEMPLATE_JAVA
+        }
+    }
+
+    /**
      * Generate a unified GraphQL controller with both query and mutation resolvers.
      */
     fun generateGraphQLController(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         // Utiliser le même package que les contrôleurs REST
         val controllerPackage = packageConfig["controllerPackage"] ?: "$basePackage.controller"
         val packagePath = controllerPackage.replace('.', '/')
 
-        val targetPath = Paths.get(sourceRoot, packagePath, "${entityMetadata.className}GraphQLController.java").toString()
+        val extension = getFileExtensionForProject(project)
+        val targetPath = Paths.get(sourceRoot, packagePath, "${entityMetadata.className}GraphQLController.$extension").toString()
 
         // Generate the content using FreeMarker template
         val cfg = createFreemarkerConfig()
-        val template = cfg.getTemplate(GRAPHQL_CONTROLLER_TEMPLATE)
+        val template = cfg.getTemplate(getControllerTemplate(project))
         val dataModel = createDataModel(entityMetadata, packageConfig)
         dataModel["controllerPackage"] = controllerPackage
 
@@ -149,12 +175,13 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
      * Generate GraphQL configuration if it does not exist already.
      */
     fun generateGraphQLConfig(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String? {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val configPackage = "$basePackage.config"
         val packagePath = configPackage.replace('.', '/')
 
-        val targetPath = Paths.get(sourceRoot, packagePath, "GraphQLConfig.java").toString()
+        val extension = getFileExtensionForProject(project)
+        val targetPath = Paths.get(sourceRoot, packagePath, "GraphQLConfig.$extension").toString()
 
         // Check if the config already exists
         val configFile = File(targetPath)
@@ -164,7 +191,7 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
 
         // Generate the content using FreeMarker template
         val cfg = createFreemarkerConfig()
-        val template = cfg.getTemplate(GRAPHQL_CONFIG_TEMPLATE)
+        val template = cfg.getTemplate(getConfigTemplate(project))
         val dataModel = mutableMapOf<String, Any>()
         dataModel["packageName"] = configPackage
         dataModel["currentDate"] = Date()

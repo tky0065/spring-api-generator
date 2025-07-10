@@ -1,0 +1,176 @@
+package ${packageName}
+
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
+import java.util.Optional
+import javax.persistence.EntityNotFoundException
+${imports}
+
+/**
+ * Unit tests for [${serviceImplName}].
+ */
+class ${testName} {
+
+    private lateinit var ${repositoryVarName}: ${repositoryName}
+    private lateinit var ${mapperVarName}: ${mapperName}
+    private lateinit var ${serviceVarName}: ${serviceName}
+
+    @BeforeEach
+    fun setUp() {
+        ${repositoryVarName} = mockk()
+        ${mapperVarName} = mockk()
+        ${serviceVarName} = ${serviceImplName}(${repositoryVarName}, ${mapperVarName})
+    }
+
+    @Test
+    fun `should save ${entityName}`() {
+        // Given
+        val ${entityVarName}DTO = create${entityName}DTO()
+        val ${entityVarName} = create${entityName}()
+
+        every { ${mapperVarName}.toEntity(any()) } returns ${entityVarName}
+        every { ${repositoryVarName}.save(any()) } returns ${entityVarName}
+        every { ${mapperVarName}.toDto(any()) } returns ${entityVarName}DTO
+
+        // When
+        val result = ${serviceVarName}.save(${entityVarName}DTO)
+
+        // Then
+        verify { ${mapperVarName}.toEntity(${entityVarName}DTO) }
+        verify { ${repositoryVarName}.save(${entityVarName}) }
+        verify { ${mapperVarName}.toDto(${entityVarName}) }
+        assert(result == ${entityVarName}DTO)
+    }
+
+    @Test
+    fun `should update existing ${entityName}`() {
+        // Given
+        val ${entityVarName}DTO = create${entityName}DTO()
+        ${entityVarName}DTO.id = ${idValue}
+        val ${entityVarName} = create${entityName}()
+
+        every { ${repositoryVarName}.existsById(${idValue}) } returns true
+        every { ${mapperVarName}.toEntity(any()) } returns ${entityVarName}
+        every { ${repositoryVarName}.save(any()) } returns ${entityVarName}
+        every { ${mapperVarName}.toDto(any()) } returns ${entityVarName}DTO
+
+        // When
+        val result = ${serviceVarName}.update(${entityVarName}DTO)
+
+        // Then
+        verify { ${repositoryVarName}.existsById(${idValue}) }
+        verify { ${mapperVarName}.toEntity(${entityVarName}DTO) }
+        verify { ${repositoryVarName}.save(${entityVarName}) }
+        verify { ${mapperVarName}.toDto(${entityVarName}) }
+        assert(result == ${entityVarName}DTO)
+    }
+
+    @Test
+    fun `should throw exception when updating non-existing ${entityName}`() {
+        // Given
+        val ${entityVarName}DTO = create${entityName}DTO()
+        ${entityVarName}DTO.id = ${idValue}
+
+        every { ${repositoryVarName}.existsById(${idValue}) } returns false
+
+        // When & Then
+        assertThrows<EntityNotFoundException> {
+            ${serviceVarName}.update(${entityVarName}DTO)
+        }
+
+        verify { ${repositoryVarName}.existsById(${idValue}) }
+    }
+
+    @Test
+    fun `should find all ${entityName}s`() {
+        // Given
+        val pageable = PageRequest.of(0, 20)
+        val ${entityVarName} = create${entityName}()
+        val ${entityVarName}DTO = create${entityName}DTO()
+        val page = PageImpl(listOf(${entityVarName}))
+
+        every { ${repositoryVarName}.findAll(pageable) } returns page
+        every { ${mapperVarName}.toDto(any<${entityName}>()) } returns ${entityVarName}DTO
+
+        // When
+        val result = ${serviceVarName}.findAll(pageable)
+
+        // Then
+        verify { ${repositoryVarName}.findAll(pageable) }
+        verify { ${mapperVarName}.toDto(${entityVarName}) }
+        assert(result.content.size == 1)
+        assert(result.content[0] == ${entityVarName}DTO)
+    }
+
+    @Test
+    fun `should find one ${entityName}`() {
+        // Given
+        val ${entityVarName} = create${entityName}()
+        val ${entityVarName}DTO = create${entityName}DTO()
+
+        every { ${repositoryVarName}.findById(${idValue}) } returns Optional.of(${entityVarName})
+        every { ${mapperVarName}.toDto(any<${entityName}>()) } returns ${entityVarName}DTO
+
+        // When
+        val result = ${serviceVarName}.findOne(${idValue})
+
+        // Then
+        verify { ${repositoryVarName}.findById(${idValue}) }
+        verify { ${mapperVarName}.toDto(${entityVarName}) }
+        assert(result == ${entityVarName}DTO)
+    }
+
+    @Test
+    fun `should throw exception when finding non-existing ${entityName}`() {
+        // Given
+        every { ${repositoryVarName}.findById(${idValue}) } returns Optional.empty()
+
+        // When & Then
+        assertThrows<EntityNotFoundException> {
+            ${serviceVarName}.findOne(${idValue})
+        }
+
+        verify { ${repositoryVarName}.findById(${idValue}) }
+    }
+
+    @Test
+    fun `should delete ${entityName}`() {
+        // Given
+        every { ${repositoryVarName}.existsById(${idValue}) } returns true
+        every { ${repositoryVarName}.deleteById(${idValue}) } returns Unit
+
+        // When
+        ${serviceVarName}.delete(${idValue})
+
+        // Then
+        verify { ${repositoryVarName}.existsById(${idValue}) }
+        verify { ${repositoryVarName}.deleteById(${idValue}) }
+    }
+
+    @Test
+    fun `should throw exception when deleting non-existing ${entityName}`() {
+        // Given
+        every { ${repositoryVarName}.existsById(${idValue}) } returns false
+
+        // When & Then
+        assertThrows<EntityNotFoundException> {
+            ${serviceVarName}.delete(${idValue})
+        }
+
+        verify { ${repositoryVarName}.existsById(${idValue}) }
+    }
+
+    private fun create${entityName}() = ${entityName}(
+        // Add entity creation code here
+    )
+
+    private fun create${entityName}DTO() = ${dtoName}(
+        // Add DTO creation code here
+    )
+}
