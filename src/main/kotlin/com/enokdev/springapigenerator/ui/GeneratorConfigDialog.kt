@@ -36,6 +36,7 @@ class GeneratorConfigDialog(
     private val testCheckbox = JBCheckBox("Tests", true)
     private val useMapstructCheckbox = JBCheckBox("Use MapStruct 1.6.3", false)
     private val useSwaggerCheckbox = JBCheckBox("Use Swagger/OpenAPI 2.8.9", false)
+    private val useOpenApiCheckbox = JBCheckBox("Use OpenAPI 3.0 Documentation", false)
     private val useSpringSecurityCheckbox = JBCheckBox("Add Spring Security", false)
     private val configureSecurityButton = JButton("Configure Security")
     private val useGraphQLCheckbox = JBCheckBox("Add GraphQL Support", false)
@@ -376,6 +377,13 @@ class GeneratorConfigDialog(
     }
 
     /**
+     * Check if OpenAPI 3.0 should be added to the project
+     */
+    fun shouldAddOpenApi(): Boolean {
+        return controllerCheckbox.isSelected && useOpenApiCheckbox.isSelected
+    }
+
+    /**
      * Returns the MapStruct dependency information based on build system
      */
     fun getMapstructDependencyInfo(): Pair<String, String> {
@@ -577,6 +585,42 @@ class GeneratorConfigDialog(
     }
 
     /**
+     * Returns the OpenAPI 3.0 dependency information based on build system
+     */
+    fun getOpenApiDependencyInfo(): Pair<String, String> {
+        val basePath = project.basePath ?: return Pair("", "")
+
+        // Check if using Gradle or Maven
+        val isMaven = File(Paths.get(basePath, "pom.xml").toString()).exists()
+        val isGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString()).exists()
+
+        return when {
+            isMaven -> {
+                val dependency = """
+                <dependency>
+                    <groupId>org.springdoc</groupId>
+                    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                    <version>2.8.9</version>
+                </dependency>
+                """
+                Pair("Maven", dependency)
+            }
+            isGradleKts -> {
+                val dependency = """
+                implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
+                """
+                Pair("Gradle Kotlin", dependency)
+            }
+            else -> {
+                val dependency = """
+                implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
+                """
+                Pair("Gradle Groovy", dependency)
+            }
+        }
+    }
+
+    /**
      * Creates the dialog UI.
      */
     override fun createCenterPanel(): JComponent {
@@ -635,6 +679,10 @@ class GeneratorConfigDialog(
         // Swagger checkbox
         panel.add(Box.createVerticalStrut(5))
         panel.add(useSwaggerCheckbox)
+
+        // OpenAPI 3.0 checkbox
+        panel.add(Box.createVerticalStrut(5))
+        panel.add(useOpenApiCheckbox)
 
         // Spring Security checkbox
         panel.add(Box.createVerticalStrut(5))

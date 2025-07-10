@@ -271,6 +271,31 @@ class GenerateSpringCodeAction : AnAction() {
                     }
                 }
 
+                // Check if OpenAPI 3.0 should be added
+                if (dialog.shouldAddOpenApi()) {
+                    val openApiInfo = dialog.getOpenApiDependencyInfo()
+                    val buildSystemType = openApiInfo.first
+                    val dependency = openApiInfo.second
+                    val result = Messages.showOkCancelDialog(
+                        project,
+                        """
+                        OpenAPI 3.0 n'a pas été détecté dans votre projet. Voulez-vous ajouter SpringDoc OpenAPI 3.0 à votre projet?
+                        
+                        La dépendance suivante sera nécessaire pour $buildSystemType:
+                        
+                        $dependency
+                        """.trimIndent(),
+                        "Ajouter OpenAPI 3.0",
+                        "Ajouter",
+                        "Non",
+                        Messages.getQuestionIcon()
+                    )
+
+                    if (result == Messages.OK) {
+                        addOpenApiDependency(project, buildSystemType)
+                    }
+                }
+
                 // Generate code for each selected component
                 val generatedFiles = mutableListOf<String>()
                 val progressTitle = "Generating Spring Boot Code"
@@ -384,6 +409,26 @@ class GenerateSpringCodeAction : AnAction() {
                                     val exceptionFile = exceptionGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
                                     writeToFile(project, exceptionFile, exceptionContent)
                                     generatedFiles.add(exceptionFile)
+                                }
+                            }
+
+                            // Generate OpenAPI 3.0 configuration if needed
+                            ReadAction.compute<Boolean, Throwable> {
+                                val hasOpenApiConfig = FilenameIndex.getVirtualFilesByName(
+                                    "OpenApiConfig.java",
+                                    true, // caseSensitively
+                                    GlobalSearchScope.projectScope(project)
+                                ).any()
+
+                                dialog.shouldAddOpenApi() && !hasOpenApiConfig
+                            }.let { shouldGenerateOpenApi ->
+                                if (shouldGenerateOpenApi) {
+                                    indicator.text = "Generating OpenAPI 3.0 Configuration..."
+                                    val openApiGenerator = OpenApiConfigGenerator()
+                                    val openApiContent = openApiGenerator.generate(project, entityMetadata, packageConfig)
+                                    val openApiFile = openApiGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
+                                    writeToFile(project, openApiFile, openApiContent)
+                                    generatedFiles.add(openApiFile)
                                 }
                             }
 
@@ -792,6 +837,85 @@ class GenerateSpringCodeAction : AnAction() {
                             // Spring GraphQL
                             implementation 'org.springframework.boot:spring-boot-starter-graphql'
                             testImplementation 'org.springframework.graphql:spring-graphql-test'
+                            """
+                        ).toString()
+                        buildGradle.writeText(updatedContent)
+                    }
+                }
+            }
+        }
+
+        // Refresh files in IDE
+        ApplicationManager.getApplication().invokeLater {
+            WriteAction.runAndWait<Throwable> {
+                LocalFileSystem.getInstance().refresh(false)
+            }
+        }
+    }
+
+    /**
+     * Adds OpenAPI 3.0 dependency to the build file
+     */
+    private fun addOpenApiDependency(project: Project, buildSystemType: String) {
+        val basePath = project.basePath ?: return
+
+        when (buildSystemType) {
+            "Maven" -> {
+                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
+                if (pomXml.exists()) {
+                    val content = pomXml.readText()
+                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
+                    val dependenciesTag = "<dependencies>"
+                    val index = content.indexOf(dependenciesTag)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesTag.length,
+                            """
+                            
+                            <!-- SpringDoc OpenAPI 3.0 for API documentation -->
+                            <dependency>
+                                <groupId>org.springdoc</groupId>
+                                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                                <version>2.8.9</version>
+                            </dependency>
+                            """
+                        ).toString()
+                        pomXml.writeText(updatedContent)
+                    }
+                }
+            }
+            "Gradle Kotlin" -> {
+                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
+                if (buildGradleKts.exists()) {
+                    val content = buildGradleKts.readText()
+                    val dependenciesBlock = "dependencies {"
+                    val index = content.indexOf(dependenciesBlock)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesBlock.length,
+                            """
+                            
+                            // SpringDoc OpenAPI 3.0 for API documentation
+                            implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
+                            """
+                        ).toString()
+                        buildGradleKts.writeText(updatedContent)
+                    }
+                }
+            }
+            else -> {
+                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
+                if (buildGradle.exists()) {
+                    val content = buildGradle.readText()
+                    val dependenciesBlock = "dependencies {"
+                    val index = content.indexOf(dependenciesBlock)
+                    if (index != -1) {
+                        val updatedContent = StringBuilder(content).insert(
+                            index + dependenciesBlock.length,
+                            """
+                            
+                            // SpringDoc OpenAPI 3.0 for API documentation
+                            implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
                             """
                         ).toString()
                         buildGradle.writeText(updatedContent)
