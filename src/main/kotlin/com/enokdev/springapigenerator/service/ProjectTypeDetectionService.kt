@@ -1,11 +1,6 @@
 package com.enokdev.springapigenerator.service
 
-import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ModuleRootManager
-import com.intellij.openapi.vfs.VfsUtil
-import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 import org.jetbrains.kotlin.idea.KotlinFileType

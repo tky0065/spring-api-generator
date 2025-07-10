@@ -256,13 +256,13 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
      */
     fun generateController(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val cfg = createFreemarkerConfig()
-        val template = cfg.getTemplate(GRAPHQL_CONTROLLER_TEMPLATE)
+        val template = cfg.getTemplate(getControllerTemplate(project))
         val dataModel = createDataModel(entityMetadata, packageConfig)
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val controllerPackage = packageConfig["controllerPackage"] ?: "$basePackage.controller"
         dataModel["controllerPackage"] = controllerPackage
 
-        val writer = StringWriter()
+        val writer = java.io.StringWriter()
         try {
             template.process(dataModel, writer)
         } catch (e: TemplateException) {
@@ -281,12 +281,13 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
      * @return The file path for the GraphQL controller
      */
     fun getControllerFilePath(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val controllerPackage = packageConfig["controllerPackage"] ?: "$basePackage.controller"
         val packagePath = controllerPackage.replace('.', '/')
+        val extension = getFileExtensionForProject(project)
 
-        return Paths.get(sourceRoot, packagePath, "${entityMetadata.className}GraphQLController.java").toString()
+        return Paths.get(sourceRoot, packagePath, "${entityMetadata.className}GraphQLController.$extension").toString()
     }
 
     /**
@@ -299,7 +300,7 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
      */
     fun generateConfig(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val cfg = createFreemarkerConfig()
-        val template = cfg.getTemplate(GRAPHQL_CONFIG_TEMPLATE)
+        val template = cfg.getTemplate(getConfigTemplate(project))
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val configPackage = "$basePackage.config"
 
@@ -325,12 +326,13 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator("GraphQLSchema.graphqls.f
      * @return The file path for the GraphQL configuration
      */
     fun getConfigFilePath(project: Project, packageConfig: Map<String, String>): String {
-        val sourceRoot = getSourceRootDir(project)
+        val sourceRoot = getSourceRootDirForProject(project)
         val basePackage = packageConfig["basePackage"] ?: throw RuntimeException("Base package is not defined")
         val configPackage = "$basePackage.config"
         val packagePath = configPackage.replace('.', '/')
+        val extension = getFileExtensionForProject(project)
 
-        return Paths.get(sourceRoot, packagePath, "GraphQLConfig.java").toString()
+        return Paths.get(sourceRoot, packagePath, "GraphQLConfig.$extension").toString()
     }
 
     /**
