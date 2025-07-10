@@ -1,29 +1,28 @@
 package com.enokdev.springapigenerator.action
 
+import com.enokdev.springapigenerator.generator.impl.*
+import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.service.EntityAnalyzer
 import com.enokdev.springapigenerator.service.EntityDetectionService
 import com.enokdev.springapigenerator.ui.GeneratorConfigDialog
+import com.enokdev.springapigenerator.util.BuildSystemHelper
+import com.enokdev.springapigenerator.util.FileHelper
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiClass
-import com.intellij.psi.PsiJavaFile
-import com.intellij.openapi.ui.Messages
-import com.enokdev.springapigenerator.generator.impl.*
-import com.enokdev.springapigenerator.model.EntityMetadata
-import com.enokdev.springapigenerator.ui.SecurityConfigDialog
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VfsUtil
+import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiJavaFile
 import com.intellij.psi.search.FilenameIndex
 import com.intellij.psi.search.GlobalSearchScope
 import java.io.File
-import java.nio.file.Paths
 
 
 /**
@@ -120,7 +119,7 @@ class GenerateSpringCodeAction : AnAction() {
                     )
 
                     if (result == Messages.OK) {
-                        addMapstructDependency(project, buildSystemType)
+                        BuildSystemHelper.addMapstructDependency(project, buildSystemType)
                     }
                 }
 
@@ -143,7 +142,7 @@ class GenerateSpringCodeAction : AnAction() {
                     )
 
                     if (result == Messages.OK) {
-                        addSwaggerDependency(project, buildSystemType)
+                        BuildSystemHelper.addSwaggerDependency(project, buildSystemType)
                     }
                 }
 
@@ -166,7 +165,7 @@ class GenerateSpringCodeAction : AnAction() {
                     )
 
                     if (result == Messages.OK) {
-                        addSpringSecurityDependency(project, buildSystemType)
+                        BuildSystemHelper.addSpringSecurityDependency(project, buildSystemType)
 
                         // Generate security files
                         val securityConfig = dialog.getSecurityConfig()
@@ -218,7 +217,7 @@ class GenerateSpringCodeAction : AnAction() {
                 if (graphqlOption == true) {
                     WriteCommandAction.runWriteCommandAction(project) {
                         // Ajouter GraphQL dependencies automatiquement
-                        addGraphQLDependency(project, detectBuildSystemType(project))
+                        BuildSystemHelper.addGraphQLDependency(project, BuildSystemHelper.detectBuildSystemType(project))
 
                         val graphQLGenerator = GraphQLGenerator()
 
@@ -266,7 +265,7 @@ class GenerateSpringCodeAction : AnAction() {
                         securityGenerator.generateUserDetailsService(project, entityMetadata, packageConfig)
 
                         // Ajouter Spring Security dependencies automatiquement
-                        addSpringSecurityDependency(project, detectBuildSystemType(project))
+                        BuildSystemHelper.addSpringSecurityDependency(project, BuildSystemHelper.detectBuildSystemType(project))
 
                         // Refresh the project view
                         LocalFileSystem.getInstance().refresh(true)
@@ -303,7 +302,7 @@ class GenerateSpringCodeAction : AnAction() {
                     )
 
                     if (result == Messages.OK) {
-                        addOpenApiDependency(project, buildSystemType)
+                        BuildSystemHelper.addOpenApiDependency(project, buildSystemType)
                     }
                 }
 
@@ -323,7 +322,7 @@ class GenerateSpringCodeAction : AnAction() {
                                 val dtoGenerator = DtoGenerator()
                                 val dtoContent = dtoGenerator.generate(project, entityMetadata, packageConfig)
                                 val dtoFile = dtoGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                writeToFile(project, dtoFile, dtoContent)
+                                FileHelper.writeToFile(project, dtoFile, dtoContent)
                                 generatedFiles.add(dtoFile)
                             }
 
@@ -333,7 +332,7 @@ class GenerateSpringCodeAction : AnAction() {
                                 val mapperGenerator = MapperGenerator()
                                 val mapperContent = mapperGenerator.generate(project, entityMetadata, packageConfig)
                                 val mapperFile = mapperGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                writeToFile(project, mapperFile, mapperContent)
+                                FileHelper.writeToFile(project, mapperFile, mapperContent)
                                 generatedFiles.add(mapperFile)
                             }
 
@@ -343,7 +342,7 @@ class GenerateSpringCodeAction : AnAction() {
                                 val repositoryGenerator = RepositoryGenerator()
                                 val repositoryContent = repositoryGenerator.generate(project, entityMetadata, packageConfig)
                                 val repositoryFile = repositoryGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                writeToFile(project, repositoryFile, repositoryContent)
+                                FileHelper.writeToFile(project, repositoryFile, repositoryContent)
                                 generatedFiles.add(repositoryFile)
                             }
 
@@ -353,7 +352,7 @@ class GenerateSpringCodeAction : AnAction() {
                                 val serviceGenerator = ServiceGenerator()
                                 val serviceContent = serviceGenerator.generate(project, entityMetadata, packageConfig)
                                 val serviceFile = serviceGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                writeToFile(project, serviceFile, serviceContent)
+                                FileHelper.writeToFile(project, serviceFile, serviceContent)
                                 // ServiceImpl is handled internally by ServiceGenerator
                                 generatedFiles.add(serviceFile)
                             }
@@ -364,7 +363,7 @@ class GenerateSpringCodeAction : AnAction() {
                                 val controllerGenerator = ControllerGenerator()
                                 val controllerContent = controllerGenerator.generate(project, entityMetadata, packageConfig)
                                 val controllerFile = controllerGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                writeToFile(project, controllerFile, controllerContent)
+                                FileHelper.writeToFile(project, controllerFile, controllerContent)
                                 generatedFiles.add(controllerFile)
 
                                 // Relationship controller generation has been disabled
@@ -377,7 +376,7 @@ class GenerateSpringCodeAction : AnAction() {
                                 val testGenerator = TestGenerator()
                                 val testContent = testGenerator.generate(project, entityMetadata, packageConfig)
                                 val testFile = testGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                writeToFile(project, testFile, testContent)
+                                FileHelper.writeToFile(project, testFile, testContent)
                                 generatedFiles.add(testFile)
                             }
 
@@ -397,7 +396,7 @@ class GenerateSpringCodeAction : AnAction() {
                                     val swaggerGenerator = SwaggerConfigGenerator()
                                     val swaggerContent = swaggerGenerator.generate(project, entityMetadata, packageConfig)
                                     val swaggerFile = swaggerGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                    writeToFile(project, swaggerFile, swaggerContent)
+                                    FileHelper.writeToFile(project, swaggerFile, swaggerContent)
                                     generatedFiles.add(swaggerFile)
                                 }
                             }
@@ -418,7 +417,7 @@ class GenerateSpringCodeAction : AnAction() {
                                     val exceptionGenerator = GlobalExceptionHandlerGenerator()
                                     val exceptionContent = exceptionGenerator.generate(project, entityMetadata, packageConfig)
                                     val exceptionFile = exceptionGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                    writeToFile(project, exceptionFile, exceptionContent)
+                                    FileHelper.writeToFile(project, exceptionFile, exceptionContent)
                                     generatedFiles.add(exceptionFile)
                                 }
                             }
@@ -438,7 +437,7 @@ class GenerateSpringCodeAction : AnAction() {
                                     val openApiGenerator = OpenApiConfigGenerator()
                                     val openApiContent = openApiGenerator.generate(project, entityMetadata, packageConfig)
                                     val openApiFile = openApiGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                    writeToFile(project, openApiFile, openApiContent)
+                                    FileHelper.writeToFile(project, openApiFile, openApiContent)
                                     generatedFiles.add(openApiFile)
                                 }
                             }
@@ -496,475 +495,6 @@ class GenerateSpringCodeAction : AnAction() {
         }
     }
 
-    /**
-     * Write content to a file, ensuring directories exist.
-     */
-    private fun writeToFile(project: Project, filePath: String, content: String) {
-        val file = File(filePath)
-        file.parentFile.mkdirs()
-        file.writeText(content)
-
-        // Refresh the file in IDE using proper write action
-        ApplicationManager.getApplication().invokeLater {
-            WriteAction.runAndWait<Throwable> {
-                LocalFileSystem.getInstance().refreshAndFindFileByPath(filePath)
-            }
-        }
-    }
-
-    /**
-     * Adds MapStruct dependency to the build file
-     */
-    private fun addMapstructDependency(project: Project, buildSystemType: String) {
-        val basePath = project.basePath ?: return
-
-        when (buildSystemType) {
-            "Maven" -> {
-                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
-                if (pomXml.exists()) {
-                    val content = pomXml.readText()
-                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
-                    val dependenciesTag = "<dependencies>"
-                    val index = content.indexOf(dependenciesTag)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesTag.length,
-                            """
-                            
-                            <!-- MapStruct for object mapping -->
-                            <dependency>
-                                <groupId>org.mapstruct</groupId>
-                                <artifactId>mapstruct</artifactId>
-                                <version>1.6.3</version>
-                            </dependency>
-                            <dependency>
-                                <groupId>org.mapstruct</groupId>
-                                <artifactId>mapstruct-processor</artifactId>
-                                <version>1.6.3</version>
-                                <scope>provided</scope>
-                            </dependency>
-                            """
-                        ).toString()
-                        pomXml.writeText(updatedContent)
-                    }
-                }
-            }
-            "Gradle Kotlin" -> {
-                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
-                if (buildGradleKts.exists()) {
-                    val content = buildGradleKts.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // MapStruct for object mapping
-                            implementation("org.mapstruct:mapstruct:1.6.3")
-                            annotationProcessor("org.mapstruct:mapstruct-processor:1.6.3")
-                            """
-                        ).toString()
-                        buildGradleKts.writeText(updatedContent)
-                    }
-                }
-            }
-            else -> {
-                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
-                if (buildGradle.exists()) {
-                    val content = buildGradle.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // MapStruct for object mapping
-                            implementation 'org.mapstruct:mapstruct:1.6.3'
-                            annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
-                            """
-                        ).toString()
-                        buildGradle.writeText(updatedContent)
-                    }
-                }
-            }
-        }
-
-        // Refresh files in IDE
-        ApplicationManager.getApplication().invokeLater {
-            WriteAction.runAndWait<Throwable> {
-                LocalFileSystem.getInstance().refresh(false)
-            }
-        }
-    }
-
-    /**
-     * Adds Swagger dependency to the build file
-     */
-    private fun addSwaggerDependency(project: Project, buildSystemType: String) {
-        val basePath = project.basePath ?: return
-
-        when (buildSystemType) {
-            "Maven" -> {
-                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
-                if (pomXml.exists()) {
-                    val content = pomXml.readText()
-                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
-                    val dependenciesTag = "<dependencies>"
-                    val index = content.indexOf(dependenciesTag)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesTag.length,
-                            """
-                            
-                            <!-- SpringDoc OpenAPI for API documentation -->
-                            <dependency>
-                                <groupId>org.springdoc</groupId>
-                                <artifactId>springdoc-openapi-ui</artifactId>
-                                <version>2.8.0</version>
-                            </dependency>
-                            """
-                        ).toString()
-                        pomXml.writeText(updatedContent)
-                    }
-                }
-            }
-            "Gradle Kotlin" -> {
-                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
-                if (buildGradleKts.exists()) {
-                    val content = buildGradleKts.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // SpringDoc OpenAPI for API documentation
-                            implementation("org.springdoc:springdoc-openapi-ui:2.8.0")
-                            """
-                        ).toString()
-                        buildGradleKts.writeText(updatedContent)
-                    }
-                }
-            }
-            else -> {
-                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
-                if (buildGradle.exists()) {
-                    val content = buildGradle.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // SpringDoc OpenAPI for API documentation
-                            implementation 'org.springdoc:springdoc-openapi-ui:2.8.0'
-                            """
-                        ).toString()
-                        buildGradle.writeText(updatedContent)
-                    }
-                }
-            }
-        }
-
-        // Refresh files in IDE
-        ApplicationManager.getApplication().invokeLater {
-            WriteAction.runAndWait<Throwable> {
-                LocalFileSystem.getInstance().refresh(false)
-            }
-        }
-    }
-
-    /**
-     * Adds Spring Security dependency to the build file
-     */
-    private fun addSpringSecurityDependency(project: Project, buildSystemType: String) {
-        val basePath = project.basePath ?: return
-
-        when (buildSystemType) {
-            "Maven" -> {
-                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
-                if (pomXml.exists()) {
-                    val content = pomXml.readText()
-                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
-                    val dependenciesTag = "<dependencies>"
-                    val index = content.indexOf(dependenciesTag)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesTag.length,
-                            """
-                            
-                            <!-- Spring Security with JWT -->
-                            <dependency>
-                                <groupId>org.springframework.boot</groupId>
-                                <artifactId>spring-boot-starter-security</artifactId>
-                            </dependency>
-                            <dependency>
-                                <groupId>io.jsonwebtoken</groupId>
-                                <artifactId>jjwt-api</artifactId>
-                                <version>0.12.6</version>
-                            </dependency>
-                            <dependency>
-                                <groupId>io.jsonwebtoken</groupId>
-                                <artifactId>jjwt-impl</artifactId>
-                                <version>0.12.6</version>
-                                <scope>runtime</scope>
-                            </dependency>
-                            <dependency>
-                                <groupId>io.jsonwebtoken</groupId>
-                                <artifactId>jjwt-jackson</artifactId>
-                                <version>0.12.6</version>
-                                <scope>runtime</scope>
-                            </dependency>
-                            """
-                        ).toString()
-                        pomXml.writeText(updatedContent)
-                    }
-                }
-            }
-            "Gradle Kotlin" -> {
-                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
-                if (buildGradleKts.exists()) {
-                    val content = buildGradleKts.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // Spring Security with JWT
-                            implementation("org.springframework.boot:spring-boot-starter-security")
-                            implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-                            runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-                            runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
-                            """
-                        ).toString()
-                        buildGradleKts.writeText(updatedContent)
-                    }
-                }
-            }
-            else -> {
-                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
-                if (buildGradle.exists()) {
-                    val content = buildGradle.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // Spring Security with JWT
-                            implementation 'org.springframework.boot:spring-boot-starter-security'
-                            implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-                            runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-                            runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
-                            """
-                        ).toString()
-                        buildGradle.writeText(updatedContent)
-                    }
-                }
-            }
-        }
-
-        // Refresh files in IDE
-        ApplicationManager.getApplication().invokeLater {
-            WriteAction.runAndWait<Throwable> {
-                LocalFileSystem.getInstance().refresh(false)
-            }
-        }
-    }
-
-    /**
-     * Adds GraphQL dependency to the build file
-     */
-    private fun addGraphQLDependency(project: Project, buildSystemType: String) {
-        val basePath = project.basePath ?: return
-
-        when (buildSystemType) {
-            "Maven" -> {
-                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
-                if (pomXml.exists()) {
-                    val content = pomXml.readText()
-                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
-                    val dependenciesTag = "<dependencies>"
-                    val index = content.indexOf(dependenciesTag)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesTag.length,
-                            """
-                            
-                            <!-- Spring GraphQL -->
-                            <dependency>
-                                <groupId>org.springframework.boot</groupId>
-                                <artifactId>spring-boot-starter-graphql</artifactId>
-                            </dependency>
-                            <dependency>
-                                <groupId>org.springframework.graphql</groupId>
-                                <artifactId>spring-graphql-test</artifactId>
-                                <scope>test</scope>
-                            </dependency>
-                            """
-                        ).toString()
-                        pomXml.writeText(updatedContent)
-                    }
-                }
-            }
-            "Gradle Kotlin" -> {
-                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
-                if (buildGradleKts.exists()) {
-                    val content = buildGradleKts.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // Spring GraphQL
-                            implementation("org.springframework.boot:spring-boot-starter-graphql")
-                            testImplementation("org.springframework.graphql:spring-graphql-test")
-                            """
-                        ).toString()
-                        buildGradleKts.writeText(updatedContent)
-                    }
-                }
-            }
-            else -> {
-                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
-                if (buildGradle.exists()) {
-                    val content = buildGradle.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // Spring GraphQL
-                            implementation 'org.springframework.boot:spring-boot-starter-graphql'
-                            testImplementation 'org.springframework.graphql:spring-graphql-test'
-                            """
-                        ).toString()
-                        buildGradle.writeText(updatedContent)
-                    }
-                }
-            }
-        }
-
-        // Refresh files in IDE
-        ApplicationManager.getApplication().invokeLater {
-            WriteAction.runAndWait<Throwable> {
-                LocalFileSystem.getInstance().refresh(false)
-            }
-        }
-    }
-
-    /**
-     * Adds OpenAPI 3.0 dependency to the build file
-     */
-    private fun addOpenApiDependency(project: Project, buildSystemType: String) {
-        val basePath = project.basePath ?: return
-
-        when (buildSystemType) {
-            "Maven" -> {
-                val pomXml = File(Paths.get(basePath, "pom.xml").toString())
-                if (pomXml.exists()) {
-                    val content = pomXml.readText()
-                    // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
-                    val dependenciesTag = "<dependencies>"
-                    val index = content.indexOf(dependenciesTag)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesTag.length,
-                            """
-                            
-                            <!-- SpringDoc OpenAPI 3.0 for API documentation -->
-                            <dependency>
-                                <groupId>org.springdoc</groupId>
-                                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-                                <version>2.8.9</version>
-                            </dependency>
-                            """
-                        ).toString()
-                        pomXml.writeText(updatedContent)
-                    }
-                }
-            }
-            "Gradle Kotlin" -> {
-                val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
-                if (buildGradleKts.exists()) {
-                    val content = buildGradleKts.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // SpringDoc OpenAPI 3.0 for API documentation
-                            implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
-                            """
-                        ).toString()
-                        buildGradleKts.writeText(updatedContent)
-                    }
-                }
-            }
-            else -> {
-                val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
-                if (buildGradle.exists()) {
-                    val content = buildGradle.readText()
-                    val dependenciesBlock = "dependencies {"
-                    val index = content.indexOf(dependenciesBlock)
-                    if (index != -1) {
-                        val updatedContent = StringBuilder(content).insert(
-                            index + dependenciesBlock.length,
-                            """
-                            
-                            // SpringDoc OpenAPI 3.0 for API documentation
-                            implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
-                            """
-                        ).toString()
-                        buildGradle.writeText(updatedContent)
-                    }
-                }
-            }
-        }
-
-        // Refresh files in IDE
-        ApplicationManager.getApplication().invokeLater {
-            WriteAction.runAndWait<Throwable> {
-                LocalFileSystem.getInstance().refresh(false)
-            }
-        }
-    }
-
-    /**
-     * Détecte le type de système de build (Maven, Gradle, Gradle Kotlin) utilisé dans le projet
-     *
-     * @param project Le projet IntelliJ
-     * @return Le type de système de build détecté, par défaut "Gradle Groovy"
-     */
-    private fun detectBuildSystemType(project: Project): String {
-        val basePath = project.basePath ?: return "Gradle Groovy"
-
-        // Vérifier si c'est un projet Maven
-        if (File(Paths.get(basePath, "pom.xml").toString()).exists()) {
-            return "Maven"
-        }
-
-        // Vérifier si c'est un projet Gradle Kotlin
-        if (File(Paths.get(basePath, "build.gradle.kts").toString()).exists()) {
-            return "Gradle Kotlin"
-        }
-
-        // Par défaut, considérer comme Gradle Groovy
-        return "Gradle Groovy"
-    }
 
     /**
      * Called to update UI components when action is visible.

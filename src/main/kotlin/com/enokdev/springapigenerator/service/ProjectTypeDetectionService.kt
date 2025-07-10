@@ -1,9 +1,9 @@
 package com.enokdev.springapigenerator.service
 
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
-import org.jetbrains.kotlin.idea.KotlinFileType
 import java.io.File
 
 /**
@@ -23,7 +23,9 @@ class ProjectTypeDetectionService {
          */
         fun isKotlinProject(project: Project): Boolean {
             // Count Kotlin and Java files in the project
-            val kotlinFiles = FileTypeIndex.getFiles(KotlinFileType.INSTANCE, GlobalSearchScope.projectScope(project))
+            // Get the Kotlin file type by its extension
+            val kotlinFileType = FileTypeManager.getInstance().getFileTypeByExtension("kt")
+            val kotlinFiles = FileTypeIndex.getFiles(kotlinFileType, GlobalSearchScope.projectScope(project))
             val javaFiles = FileTypeIndex.getFiles(com.intellij.ide.highlighter.JavaFileType.INSTANCE, GlobalSearchScope.projectScope(project))
 
             // If there are no Kotlin files, it's definitely not a Kotlin project
