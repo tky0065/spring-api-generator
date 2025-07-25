@@ -1,0 +1,108 @@
+package ${packageName};
+
+<#-- Generate imports based on ID configuration -->
+<#list repositoryImports as import>
+import ${import};
+</#list>
+
+/**
+ * Repository interface for ${className} with ${idConfig.javaType} ID support.
+ * Generated with custom ID type handling.
+ */
+<#if idConfig.requiresCustomRepository>
+@Repository
+</#if>
+public interface ${className}Repository extends ${extendsInterface?replace("T", className)} {
+
+<#-- Generate custom repository methods based on ID type -->
+<#if customRepositoryMethods?has_content>
+    // Custom methods for ${idConfig.type} ID type
+<#list customRepositoryMethods as method>
+    ${method}
+
+</#list>
+</#if>
+
+<#-- Generate query methods -->
+<#if queryMethods?has_content>
+    // Enhanced query methods
+<#list queryMethods as method>
+    ${method}
+
+</#list>
+</#if>
+
+<#-- Generate ID-specific finder methods -->
+<#if idConfig.isUuid>
+    /**
+     * Generate a new UUID for entity creation.
+     */
+    default UUID generateNewId() {
+        return UUID.randomUUID();
+    }
+
+    /**
+     * Find entity by UUID with null safety.
+     */
+    default Optional<${className}> findByIdSafely(UUID id) {
+        return id != null ? findById(id) : Optional.empty();
+    }
+</#if>
+
+<#if idConfig.isString>
+    /**
+     * Find entities with ID validation.
+     */
+    default List<${className}> findByValidId(String id) {
+        if (id == null || id.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return findByIdIgnoreCase(id.trim());
+    }
+
+    /**
+     * Generate search suggestions based on partial ID.
+     */
+    default List<String> suggestIds(String partial) {
+        return findByIdStartingWithIgnoreCase(partial)
+            .stream()
+            .map(${className}::getId)
+            .distinct()
+            .limit(10)
+            .collect(Collectors.toList());
+    }
+</#if>
+
+<#if idConfig.isComposite>
+    /**
+     * Create composite key from individual components.
+     */
+    default ${idConfig.compositeKeyClass?split(".")?last} createCompositeKey(Object... keyParts) {
+        // Implementation would depend on the specific composite key structure
+        throw new UnsupportedOperationException("Composite key creation needs to be implemented");
+    }
+
+    /**
+     * Validate composite key before operations.
+     */
+    default boolean isValidCompositeKey(${idConfig.compositeKeyClass?split(".")?last} key) {
+        return key != null; // Add specific validation logic as needed
+    }
+</#if>
+
+<#if idConfig.isEmbedded>
+    /**
+     * Create embedded ID instance.
+     */
+    default ${idConfig.embeddedIdClass?split(".")?last} createEmbeddedId() {
+        return new ${idConfig.embeddedIdClass?split(".")?last}();
+    }
+
+    /**
+     * Validate embedded ID before operations.
+     */
+    default boolean isValidEmbeddedId(${idConfig.embeddedIdClass?split(".")?last} id) {
+        return id != null; // Add specific validation logic as needed
+    }
+</#if>
+}

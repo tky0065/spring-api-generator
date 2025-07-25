@@ -1,0 +1,217 @@
+package ${packageName}
+
+<#-- Generate imports for advanced JPA features -->
+<#list jpaImports as import>
+import ${import.replace("javax.persistence", "jakarta.persistence")}
+</#list>
+import java.time.LocalDateTime
+import java.util.*
+
+/**
+ * ${className} entity with advanced JPA features (Kotlin version).
+ * Generated with support for inheritance, embeddable fields, lifecycle callbacks, and more.
+ */
+<#-- Add inheritance annotations if present -->
+<#if jpaFeatures.hasInheritance>
+<#if jpaFeatures.isMappedSuperclass>
+@MappedSuperclass
+<#else>
+${inheritanceCode}
+</#if>
+</#if>
+
+<#-- Add entity listener if there are lifecycle callbacks -->
+<#if jpaFeatures.hasLifecycleCallbacks>
+@EntityListeners(${className}EntityListener::class)
+</#if>
+
+@Entity
+@Table(name = "${tableName}")
+<#if jpaFeatures.hasAuditing>
+@EntityListeners(AuditingEntityListener::class)
+</#if>
+<#if jpaFeatures.isMappedSuperclass>abstract </#if>class ${className}<#if superClass??> : ${superClass}()</#if> {
+
+    <#-- Generate ID field -->
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: ${idType}? = null
+
+    <#-- Generate regular fields -->
+    <#list fields as field>
+    <#if field.relationType == "NONE">
+    <#if helpers.validation??>
+        <#if field.nullable == false>
+    ${helpers.validation("notNull")}
+        </#if>
+        <#if field.type == "String">
+    ${helpers.validation("notBlank")}
+        </#if>
+    </#if>
+    @Column(name = "${field.columnName!field.name}")
+    var ${helpers.field.adaptName(field.name)}: ${field.type}<#if field.nullable>?</#if> = <#if field.nullable>null<#else><#if field.type == "String">""<#elseif field.type == "Boolean">false<#elseif field.type?matches(".*Int.*|.*Long.*|.*Double.*|.*Float.*")>0<#else>null</#if></#if>
+    </#list>
+
+    <#-- Generate embeddable fields -->
+    <#if embeddableFieldsCode?has_content>
+    // Embeddable fields
+    <#list jpaFeatures.embeddableFields as embeddable>
+    <#assign embeddableType = embeddable.embeddableClass?split(".")?last>
+    @Embedded
+    <#if embeddable.attributeOverrides?has_content>
+    @AttributeOverrides(
+        <#list embeddable.attributeOverrides?keys as field>
+        AttributeOverride(name = "${field}", column = Column(name = "${embeddable.attributeOverrides[field]}"))<#if field?has_next>,</#if>
+        </#list>
+    )
+    </#if>
+    var ${embeddable.fieldName}: ${embeddableType}? = null
+    </#list>
+    </#if>
+
+    <#-- Generate auditing fields -->
+    <#if jpaFeatures.hasAuditing>
+    // Auditing fields
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    var createdAt: LocalDateTime? = null
+
+    @LastModifiedDate
+    @Column(name = "updated_at")
+    var updatedAt: LocalDateTime? = null
+
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    var createdBy: String? = null
+
+    @LastModifiedBy
+    @Column(name = "last_modified_by")
+    var lastModifiedBy: String? = null
+    </#if>
+
+    <#-- Generate versioning field -->
+    <#if jpaFeatures.hasVersioning>
+    // Optimistic locking version
+    @Version
+    @Column(name = "version")
+    var version: Long? = null
+    </#if>
+
+    <#-- Generate soft delete fields -->
+    <#if jpaFeatures.hasSoftDelete>
+    // Soft delete support
+    @Column(name = "deleted", nullable = false)
+    var deleted: Boolean = false
+
+    @Column(name = "deleted_at")
+    var deletedAt: LocalDateTime? = null
+    </#if>
+
+    <#-- Generate lifecycle callback methods -->
+    <#if jpaFeatures.hasLifecycleCallbacks>
+    // Lifecycle callback methods
+    <#list jpaFeatures.lifecycleCallbacks as callback>
+    @${callback.type.name?split("_")?join("")?lower_case?cap_first}
+    private fun ${callback.methodName}() {
+        // Lifecycle callback implementation
+        // Add your logic here
+    }
+
+    </#list>
+    </#if>
+
+    <#-- Generate utility methods for advanced features -->
+    <#if jpaFeatures.hasAuditing>
+    /**
+     * Checks if this entity was created recently (within the last hour).
+     */
+    fun isRecentlyCreated(): Boolean =
+        createdAt?.isAfter(LocalDateTime.now().minusHours(1)) ?: false
+
+    /**
+     * Checks if this entity was modified recently (within the last hour).
+     */
+    fun isRecentlyModified(): Boolean =
+        updatedAt?.isAfter(LocalDateTime.now().minusHours(1)) ?: false
+    </#if>
+
+    <#if jpaFeatures.hasVersioning>
+    /**
+     * Checks if this entity is a new entity (version is null or 0).
+     */
+    fun isNew(): Boolean = version == null || version == 0L
+    </#if>
+
+    <#if jpaFeatures.hasSoftDelete>
+    /**
+     * Marks this entity as deleted (soft delete).
+     */
+    fun markAsDeleted() {
+        this.deleted = true
+        this.deletedAt = LocalDateTime.now()
+    }
+
+    /**
+     * Restores this entity from deleted state.
+     */
+    fun restore() {
+        this.deleted = false
+        this.deletedAt = null
+    }
+
+    /**
+     * Checks if this entity is deleted.
+     */
+    fun isDeleted(): Boolean = deleted
+    </#if>
+
+    <#-- Generate business methods for embeddable fields -->
+    <#list jpaFeatures.embeddableFields as embeddable>
+    <#assign embeddableType = embeddable.embeddableClass?split(".")?last>
+    /**
+     * Initializes ${embeddable.fieldName} if null.
+     */
+    fun ensure${embeddable.fieldName?cap_first}() {
+        if (this.${embeddable.fieldName} == null) {
+            this.${embeddable.fieldName} = ${embeddableType}()
+        }
+    }
+
+    /**
+     * Checks if ${embeddable.fieldName} is present and valid.
+     */
+    fun has${embeddable.fieldName?cap_first}(): Boolean = this.${embeddable.fieldName} != null
+
+    </#list>
+
+    <#-- Generate equals and hashCode -->
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ${className}) return false
+        return id == other.id
+    }
+
+    override fun hashCode(): Int = Objects.hash(id)
+
+    <#-- Generate toString with advanced feature awareness -->
+    override fun toString(): String {
+        return "${className}(" +
+            "id=$id" +
+            <#list fields as field>
+            <#if field.relationType == "NONE">
+            ", ${field.name}=${helpers.field.adaptName(field.name)}" +
+            </#if>
+            </#list>
+            <#if jpaFeatures.hasVersioning>
+            ", version=$version" +
+            </#if>
+            <#if jpaFeatures.hasAuditing>
+            ", createdAt=$createdAt" +
+            ", updatedAt=$updatedAt" +
+            </#if>
+            <#if jpaFeatures.hasSoftDelete>
+            ", deleted=$deleted" +
+            </#if>
+            ")"
+    }
+}

@@ -1,0 +1,268 @@
+package ${packageName};
+
+<#-- Generate imports for advanced JPA features -->
+<#list jpaImports as import>
+import ${import};
+</#list>
+
+/**
+ * ${className} entity with advanced JPA features.
+ * Generated with support for inheritance, embeddable fields, lifecycle callbacks, and more.
+ */
+<#-- Add inheritance annotations if present -->
+<#if jpaFeatures.hasInheritance>
+<#if jpaFeatures.isMappedSuperclass>
+@MappedSuperclass
+<#else>
+${inheritanceCode}
+</#if>
+</#if>
+
+<#-- Add entity listener if there are lifecycle callbacks -->
+<#if jpaFeatures.hasLifecycleCallbacks>
+@EntityListeners(${className}EntityListener.class)
+</#if>
+
+@Entity
+@Table(name = "${tableName}")
+<#if jpaFeatures.hasAuditing>
+@EntityListeners(AuditingEntityListener.class)
+</#if>
+public<#if jpaFeatures.isMappedSuperclass> abstract</#if> class ${className}<#if superClass??> extends ${superClass}</#if> {
+
+    <#-- Generate ID field -->
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private ${idType} id;
+
+    <#-- Generate regular fields -->
+    <#list fields as field>
+    <#if field.relationType == "NONE">
+    <#if helpers.validation??>
+        <#if field.nullable == false>
+    ${helpers.validation("notNull")}
+        </#if>
+        <#if field.type == "String">
+    ${helpers.validation("notBlank")}
+        </#if>
+    </#if>
+    @Column(name = "${field.columnName!field.name}")
+    private ${field.type} ${helpers.field.adaptName(field.name)};
+    </#if>
+    </#list>
+
+    <#-- Generate embeddable fields -->
+    <#if embeddableFieldsCode?has_content>
+    // Embeddable fields
+    ${embeddableFieldsCode}
+    </#if>
+
+    <#-- Generate auditing fields -->
+    <#if auditingFieldsCode?has_content>
+    // Auditing fields
+    ${auditingFieldsCode}
+    </#if>
+
+    <#-- Generate versioning field -->
+    <#if versioningCode?has_content>
+    // Optimistic locking version
+    ${versioningCode}
+    </#if>
+
+    <#-- Generate soft delete fields -->
+    <#if softDeleteCode?has_content>
+    // Soft delete support
+    ${softDeleteCode}
+    </#if>
+
+    <#-- Generate constructors -->
+    /**
+     * Default constructor required by JPA.
+     */
+    public ${className}() {}
+
+    /**
+     * Constructor with required fields.
+     */
+    public ${className}(<#list fields as field><#if field.relationType == "NONE" && field.nullable == false>${field.type} ${field.name}<#if field?has_next>, </#if></#if></#list>) {
+        <#list fields as field>
+        <#if field.relationType == "NONE" && field.nullable == false>
+        this.${helpers.field.adaptName(field.name)} = ${field.name};
+        </#if>
+        </#list>
+    }
+
+    <#-- Generate getters and setters for regular fields -->
+    <#list fields as field>
+    <#if field.relationType == "NONE">
+    public ${field.type} ${helpers.field.getterName(field.name)}() {
+        return ${helpers.field.adaptName(field.name)};
+    }
+
+    public void ${helpers.field.setterName(field.name)}(${field.type} ${field.name}) {
+        this.${helpers.field.adaptName(field.name)} = ${field.name};
+    }
+
+    </#if>
+    </#list>
+
+    <#-- Generate ID getter and setter -->
+    public ${idType} getId() {
+        return id;
+    }
+
+    public void setId(${idType} id) {
+        this.id = id;
+    }
+
+    <#-- Generate getters and setters for embeddable fields -->
+    <#list jpaFeatures.embeddableFields as embeddable>
+    <#assign embeddableType = embeddable.embeddableClass?split(".")?last>
+    public ${embeddableType} get${embeddable.fieldName?cap_first}() {
+        return ${embeddable.fieldName};
+    }
+
+    public void set${embeddable.fieldName?cap_first}(${embeddableType} ${embeddable.fieldName}) {
+        this.${embeddable.fieldName} = ${embeddable.fieldName};
+    }
+
+    </#list>
+
+    <#-- Generate auditing getters and setters -->
+    <#if jpaFeatures.hasAuditing>
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public String getLastModifiedBy() {
+        return lastModifiedBy;
+    }
+
+    public void setLastModifiedBy(String lastModifiedBy) {
+        this.lastModifiedBy = lastModifiedBy;
+    }
+    </#if>
+
+    <#-- Generate version getter and setter -->
+    <#if jpaFeatures.hasVersioning>
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
+    }
+    </#if>
+
+    <#-- Generate soft delete getters and setters (already included in softDeleteCode) -->
+
+    <#-- Generate lifecycle callback methods -->
+    <#if lifecycleCallbacksCode?has_content>
+    // Lifecycle callback methods
+    ${lifecycleCallbacksCode}
+    </#if>
+
+    <#-- Generate utility methods for advanced features -->
+    <#if jpaFeatures.hasAuditing>
+    /**
+     * Checks if this entity was created recently (within the last hour).
+     */
+    public boolean isRecentlyCreated() {
+        return createdAt != null && createdAt.isAfter(LocalDateTime.now().minusHours(1));
+    }
+
+    /**
+     * Checks if this entity was modified recently (within the last hour).
+     */
+    public boolean isRecentlyModified() {
+        return updatedAt != null && updatedAt.isAfter(LocalDateTime.now().minusHours(1));
+    }
+    </#if>
+
+    <#if jpaFeatures.hasVersioning>
+    /**
+     * Checks if this entity is a new entity (version is null or 0).
+     */
+    public boolean isNew() {
+        return version == null || version == 0;
+    }
+    </#if>
+
+    <#-- Generate business methods for embeddable fields -->
+    <#list jpaFeatures.embeddableFields as embeddable>
+    <#assign embeddableType = embeddable.embeddableClass?split(".")?last>
+    /**
+     * Initializes ${embeddable.fieldName} if null.
+     */
+    public void ensure${embeddable.fieldName?cap_first}() {
+        if (this.${embeddable.fieldName} == null) {
+            this.${embeddable.fieldName} = new ${embeddableType}();
+        }
+    }
+
+    /**
+     * Checks if ${embeddable.fieldName} is present and valid.
+     */
+    public boolean has${embeddable.fieldName?cap_first}() {
+        return this.${embeddable.fieldName} != null;
+    }
+
+    </#list>
+
+    <#-- Generate equals and hashCode -->
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        ${className} that = (${className}) obj;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    <#-- Generate toString with advanced feature awareness -->
+    @Override
+    public String toString() {
+        return "${className}{" +
+            "id=" + id +
+            <#list fields as field>
+            <#if field.relationType == "NONE">
+            ", ${field.name}=" + ${helpers.field.adaptName(field.name)} +
+            </#if>
+            </#list>
+            <#if jpaFeatures.hasVersioning>
+            ", version=" + version +
+            </#if>
+            <#if jpaFeatures.hasAuditing>
+            ", createdAt=" + createdAt +
+            ", updatedAt=" + updatedAt +
+            </#if>
+            <#if jpaFeatures.hasSoftDelete>
+            ", deleted=" + deleted +
+            </#if>
+            "}";
+    }
+}

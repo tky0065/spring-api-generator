@@ -1,0 +1,82 @@
+package ${packageName}.id;
+
+import java.io.Serializable;
+import java.util.Objects;
+
+/**
+ * Composite key class for ${entityName}.
+ * Implements Serializable as required by JPA specification.
+ */
+public class ${entityName}Id implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+<#-- Generate fields for composite key -->
+<#list keyFields as field>
+    private ${field.type} ${field.name};
+</#list>
+
+    /**
+     * Default constructor required by JPA.
+     */
+    public ${entityName}Id() {}
+
+    /**
+     * Constructor with all key fields.
+     */
+    public ${entityName}Id(<#list keyFields as field>${field.type} ${field.name}<#if field?has_next>, </#if></#list>) {
+<#list keyFields as field>
+        this.${field.name} = ${field.name};
+</#list>
+    }
+
+<#-- Generate getters and setters -->
+<#list keyFields as field>
+    public ${field.type} get${field.name?cap_first}() {
+        return ${field.name};
+    }
+
+    public void set${field.name?cap_first}(${field.type} ${field.name}) {
+        this.${field.name} = ${field.name};
+    }
+
+</#list>
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ${entityName}Id that = (${entityName}Id) o;
+        return <#list keyFields as field>Objects.equals(${field.name}, that.${field.name})<#if field?has_next> &&
+               </#if></#list>;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(<#list keyFields as field>${field.name}<#if field?has_next>, </#if></#list>);
+    }
+
+    @Override
+    public String toString() {
+        return "${entityName}Id{" +
+<#list keyFields as field>
+                "${field.name}=" + ${field.name} +<#if field?has_next>
+</#if>
+</#list>
+                '}';
+    }
+
+    /**
+     * Validates that all key fields are non-null.
+     */
+    public boolean isValid() {
+        return <#list keyFields as field>${field.name} != null<#if field?has_next> && </#if></#list>;
+    }
+
+    /**
+     * Creates a copy of this composite key.
+     */
+    public ${entityName}Id copy() {
+        return new ${entityName}Id(<#list keyFields as field>this.${field.name}<#if field?has_next>, </#if></#list>);
+    }
+}

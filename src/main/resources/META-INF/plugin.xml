@@ -96,7 +96,12 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <!-- No extensions defined yet -->
+        <!-- Template Management Settings -->
+        <projectConfigurable
+            parentId="tools"
+            instance="com.enokdev.springapigenerator.ui.settings.TemplateManagementConfigurable"
+            id="spring.api.generator.templates"
+            displayName="Spring API Generator Templates"/>
     </extensions>
 
     <actions>

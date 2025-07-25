@@ -1,0 +1,93 @@
+package ${packageName}
+
+<#-- Generate imports based on ID configuration -->
+<#list repositoryImports as import>
+import ${import}
+</#list>
+import org.springframework.stereotype.Repository
+import java.util.*
+
+/**
+ * Repository interface for ${className} with ${idConfig.javaType} ID support (Kotlin version).
+ * Generated with custom ID type handling.
+ */
+<#if idConfig.requiresCustomRepository>
+@Repository
+</#if>
+interface ${className}Repository : ${extendsInterface?replace("T", className)} {
+
+<#-- Generate custom repository methods based on ID type -->
+<#if customRepositoryMethods?has_content>
+    // Custom methods for ${idConfig.type} ID type
+<#list customRepositoryMethods as method>
+    ${method.replace("List<", "List<").replace("Optional<", "Optional<")}
+
+</#list>
+</#if>
+
+<#-- Generate query methods -->
+<#if queryMethods?has_content>
+    // Enhanced query methods
+<#list queryMethods as method>
+    ${method}
+
+</#list>
+</#if>
+
+<#-- Generate ID-specific finder methods -->
+<#if idConfig.isUuid>
+    /**
+     * Generate a new UUID for entity creation.
+     */
+    fun generateNewId(): UUID = UUID.randomUUID()
+
+    /**
+     * Find entity by UUID with null safety.
+     */
+    fun findByIdSafely(id: UUID?): Optional<${className}> =
+        if (id != null) findById(id) else Optional.empty()
+</#if>
+
+<#if idConfig.isString>
+    /**
+     * Find entities with ID validation.
+     */
+    fun findByValidId(id: String?): List<${className}> {
+        return if (id.isNullOrBlank()) {
+            emptyList()
+        } else {
+            findByIdIgnoreCase(id.trim())
+        }
+    }
+
+    /**
+     * Generate search suggestions based on partial ID.
+     */
+    fun suggestIds(partial: String): List<String> {
+        return findByIdStartingWithIgnoreCase(partial)
+            .map { it.id }
+            .filterNotNull()
+            .distinct()
+            .take(10)
+    }
+</#if>
+
+<#if idConfig.isComposite>
+    /**
+     * Validate composite key before operations.
+     */
+    fun isValidCompositeKey(key: ${idConfig.compositeKeyClass?split(".")?last}?): Boolean = key != null
+</#if>
+
+<#if idConfig.isEmbedded>
+    /**
+     * Create embedded ID instance.
+     */
+    fun createEmbeddedId(): ${idConfig.embeddedIdClass?split(".")?last} = ${idConfig.embeddedIdClass?split(".")?last}()
+
+    /**
+     * Validate embedded ID before operations.
+     */
+    fun isValidEmbeddedId(id: ${idConfig.embeddedIdClass?split(".")?last}?): Boolean = id != null
+</#if>
+}

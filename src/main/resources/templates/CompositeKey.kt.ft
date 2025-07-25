@@ -1,0 +1,64 @@
+package ${packageName}
+
+import jakarta.persistence.Embeddable
+import java.io.Serializable
+import java.util.*
+
+/**
+ * Composite key class for ${entityName} (Kotlin version).
+ * Generated to support composite primary keys.
+ */
+@Embeddable
+data class ${className}(
+<#list keyFields as field>
+    var ${field.name}: ${field.type}<#if field.nullable>?</#if> = <#if field.type == "String">""<#elseif field.nullable>null<#else>0</#if><#if field_has_next>,</#if>
+</#list>
+) : Serializable {
+
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+
+    /**
+     * Creates a composite key with all required fields.
+     */
+    constructor(
+<#list keyFields as field>
+        ${field.name}: ${field.type}<#if field.nullable>?</#if><#if field_has_next>,</#if>
+</#list>
+    ) : this() {
+<#list keyFields as field>
+        this.${field.name} = ${field.name}
+</#list>
+    }
+
+    /**
+     * Checks if this composite key is valid (all required fields are set).
+     */
+    fun isValid(): Boolean {
+        return <#list keyFields as field><#if !field.nullable>${field.name} != <#if field.type == "String">""<#else>0</#if><#if field_has_next> && </#if></#if></#list>
+    }
+
+    /**
+     * Creates a string representation suitable for logging.
+     */
+    override fun toString(): String {
+        return "${className}(" +
+<#list keyFields as field>
+                "${field.name}=$${field.name}<#if field_has_next>, " +</#if>
+</#list>
+                ")"
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ${className}) return false
+
+        return <#list keyFields as field>${field.name} == other.${field.name}<#if field_has_next> &&
+               </#if></#list>
+    }
+
+    override fun hashCode(): Int {
+        return Objects.hash(<#list keyFields as field>${field.name}<#if field_has_next>, </#if></#list>)
+    }
+}

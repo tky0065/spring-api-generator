@@ -1,0 +1,105 @@
+package ${packageName}
+
+import jakarta.persistence.Embeddable
+import jakarta.persistence.Column
+import java.io.Serializable
+import java.util.*
+
+/**
+ * Embedded ID class for ${entityName} (Kotlin version).
+ * Generated to support embedded primary keys with custom column mappings.
+ */
+@Embeddable
+data class ${className}(
+<#list embeddedFields as field>
+    @Column(name = "${field.columnName}")
+    var ${field.name}: ${field.type}<#if field.nullable>?</#if> = <#if field.type == "String">""<#elseif field.nullable>null<#else>0</#if><#if field_has_next>,</#if>
+</#list>
+) : Serializable {
+
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+
+<#if embeddedFields?size gt 1>
+    /**
+     * Primary constructor for creating embedded ID with all fields.
+     */
+    constructor(
+<#list embeddedFields as field>
+        ${field.name}: ${field.type}<#if field.nullable>?</#if><#if field_has_next>,</#if>
+</#list>
+    ) : this() {
+<#list embeddedFields as field>
+        this.${field.name} = ${field.name}
+</#list>
+    }
+</#if>
+
+    /**
+     * Validates that all required fields are set.
+     */
+    fun isValid(): Boolean {
+        return <#list embeddedFields as field><#if !field.nullable>${field.name} != <#if field.type == "String">""<#else>0</#if><#if field_has_next> && </#if></#if></#list>
+    }
+
+    /**
+     * Creates a copy of this embedded ID with modified fields.
+     */
+    fun copy(
+<#list embeddedFields as field>
+        ${field.name}: ${field.type}<#if field.nullable>?</#if> = this.${field.name}<#if field_has_next>,</#if>
+</#list>
+    ): ${className} {
+        return ${className}(<#list embeddedFields as field>${field.name}<#if field_has_next>, </#if></#list>)
+    }
+
+    /**
+     * Creates a formatted string representation.
+     */
+    override fun toString(): String {
+        return "${className}(" +
+<#list embeddedFields as field>
+                "${field.name}='$${field.name}'<#if field_has_next>, " +</#if>
+</#list>
+                ")"
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ${className}) return false
+
+        return <#list embeddedFields as field>${field.name} == other.${field.name}<#if field_has_next> &&
+               </#if></#list>
+    }
+
+    override fun hashCode(): Int {
+        return Objects.hash(<#list embeddedFields as field>${field.name}<#if field_has_next>, </#if></#list>)
+    }
+
+<#if generateQueryMethods?? && generateQueryMethods>
+    /**
+     * Builder pattern for creating embedded IDs.
+     */
+    class Builder {
+<#list embeddedFields as field>
+        private var ${field.name}: ${field.type}<#if field.nullable>?</#if> = <#if field.type == "String">""<#elseif field.nullable>null<#else>0</#if>
+</#list>
+
+<#list embeddedFields as field>
+        fun ${field.name}(${field.name}: ${field.type}<#if field.nullable>?</#if>): Builder {
+            this.${field.name} = ${field.name}
+            return this
+        }
+
+</#list>
+        fun build(): ${className} {
+            return ${className}(<#list embeddedFields as field>${field.name}<#if field_has_next>, </#if></#list>)
+        }
+    }
+
+    companion object {
+        fun builder(): Builder = Builder()
+    }
+</#if>
+}

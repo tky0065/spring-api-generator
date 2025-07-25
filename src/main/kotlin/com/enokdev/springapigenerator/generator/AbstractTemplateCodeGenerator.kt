@@ -2,11 +2,15 @@ package com.enokdev.springapigenerator.generator
 
 import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.service.ProjectTypeDetectionService
+import com.enokdev.springapigenerator.service.TemplateCustomizationService
+import com.enokdev.springapigenerator.service.CodeStyleDetector
+import com.enokdev.springapigenerator.service.CodeStyleAdapter
 import com.intellij.openapi.project.Project
 import freemarker.template.Configuration
 import freemarker.template.Template
 import freemarker.template.TemplateException
 import freemarker.template.TemplateExceptionHandler
+import java.io.File
 import java.io.StringWriter
 import java.nio.file.Paths
 
@@ -37,13 +41,29 @@ abstract class AbstractTemplateCodeGenerator(
     }
 
     /**
-     * Generate code using the template engine.
+     * Generate code using the template engine with automatic style adaptation and Kotlin support.
      */
     override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        val cfg = createFreemarkerConfig()
+        val cfg = createFreemarkerConfig(project)
         val templateName = getTemplateNameForProject(project)
         val template = cfg.getTemplate(templateName)
-        val dataModel = createDataModel(entityMetadata, packageConfig)
+
+        // Detect project code style
+        val codeStyleDetector = CodeStyleDetector()
+        val styleConfig = codeStyleDetector.detectCodeStyle(project)
+        val styleAdapter = CodeStyleAdapter(styleConfig)
+
+        // Create enhanced data model with style information and Kotlin support
+        val dataModel = createDataModel(entityMetadata, packageConfig, styleAdapter)
+
+        // Add Kotlin-specific data
+        dataModel["isKotlinProject"] = ProjectTypeDetectionService.shouldGenerateKotlinCode(project)
+        dataModel["kotlinSupport"] = mapOf(
+            "nullSafety" to true,
+            "dataClasses" to true,
+            "extensionFunctions" to true,
+            "propertyAccess" to true
+        )
 
         val writer = StringWriter()
         try {
@@ -52,8 +72,12 @@ abstract class AbstractTemplateCodeGenerator(
             throw RuntimeException("Error processing template: ${e.message}", e)
         }
 
-        return writer.toString()
+        // Apply style adaptation to the generated code
+        val generatedCode = writer.toString()
+        return styleAdapter.adaptCode(generatedCode)
     }
+
+
 
     /**
      * Create the data model for the template.
@@ -83,12 +107,69 @@ abstract class AbstractTemplateCodeGenerator(
     }
 
     /**
-     * Create and configure the FreeMarker template engine.
+     * Create the data model for the template with style adapter support.
      */
-    protected fun createFreemarkerConfig(): Configuration {
+    protected open fun createDataModel(entityMetadata: EntityMetadata, packageConfig: Map<String, String>, styleAdapter: CodeStyleAdapter): MutableMap<String, Any> {
+        val model = createDataModel(entityMetadata, packageConfig)
+
+        // Add style-aware helpers to the template context
+        model["styleAdapter"] = styleAdapter
+        model["indent"] = styleAdapter.getIndentation()
+        model["indent2"] = styleAdapter.getIndentation(2)
+        model["indent3"] = styleAdapter.getIndentation(3)
+
+        // Add style-adapted field and method names
+        val adaptedFields = entityMetadata.fields.map { field ->
+            mapOf(
+                "name" to field.name,
+                "adaptedName" to styleAdapter.adaptFieldName(field.name),
+                "type" to field.type,
+                "getterName" to styleAdapter.formatGetterName(field.name, field.type == "Boolean"),
+                "setterName" to styleAdapter.formatSetterName(field.name),
+                "nullable" to field.nullable,
+                "columnName" to field.columnName,
+                "relationType" to field.relationType
+            )
+        }
+        model["adaptedFields"] = adaptedFields
+
+        return model
+    }
+
+    /**
+     * Create and configure the FreeMarker template engine with custom template support.
+     */
+    protected fun createFreemarkerConfig(project: Project): Configuration {
         val cfg = Configuration(Configuration.VERSION_2_3_30)
+
+        // Get template customization service
+        val templateService = project.getService(TemplateCustomizationService::class.java)
+
+        // Set up template loaders with priority: custom templates first, then built-in templates
+        val templateLoaders = mutableListOf<freemarker.cache.TemplateLoader>()
+
+        // Add custom template directories if they exist
+        val projectTemplatesDir = File(templateService.getProjectTemplatesDirectory())
+        if (projectTemplatesDir.exists()) {
+            templateLoaders.add(freemarker.cache.FileTemplateLoader(projectTemplatesDir))
+        }
+
+        val userTemplatesDir = File(templateService.getUserTemplatesDirectory())
+        if (userTemplatesDir.exists()) {
+            templateLoaders.add(freemarker.cache.FileTemplateLoader(userTemplatesDir))
+        }
+
+        // Add built-in templates as fallback
         val classLoader = javaClass.classLoader
-        cfg.setClassLoaderForTemplateLoading(classLoader, "templates")
+        templateLoaders.add(freemarker.cache.ClassTemplateLoader(classLoader, "templates"))
+
+        // Create multi-template loader
+        if (templateLoaders.size > 1) {
+            cfg.templateLoader = freemarker.cache.MultiTemplateLoader(templateLoaders.toTypedArray())
+        } else {
+            cfg.templateLoader = templateLoaders.first()
+        }
+
         cfg.defaultEncoding = "UTF-8"
         cfg.templateExceptionHandler = TemplateExceptionHandler.RETHROW_HANDLER
         cfg.logTemplateExceptions = false
