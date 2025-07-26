@@ -2,7 +2,9 @@ package ${packageName}
 
 import org.mapstruct.*
 import org.springframework.data.domain.Page
+<#if imports??>
 ${imports}
+</#if>
 
 /**
  * Mapper for the entity ${entityName} and its DTO ${dtoName}.
@@ -11,7 +13,11 @@ ${imports}
 interface ${mapperName} {
 
     @Mapping(target = "id", source = "id")
-${mappings}
+<#if mappings??>
+<#list mappings as mapping>
+    ${mapping}
+</#list>
+</#if>
 
     fun toDto(${entityVarName}: ${entityName}): ${dtoName}
 
@@ -29,5 +35,8 @@ ${mappings}
      */
     fun toDto(page: Page<${entityName}>): Page<${dtoName}> =
         page.map { toDto(it) }
+
+<#if customMethods?? && customMethods != "">
 ${customMethods}
+</#if>
 }

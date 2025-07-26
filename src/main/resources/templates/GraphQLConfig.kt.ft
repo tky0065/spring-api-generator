@@ -1,4 +1,4 @@
-package ${packageName}
+package ${packageName!"${basePackage}.config"}
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -8,14 +8,17 @@ import graphql.schema.Coercing
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Configuration class for GraphQL.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Configuration
-class GraphQLConfig {
+class ${className!"GraphQLConfig"} {
 
     /**
      * Configure custom scalars for GraphQL.
@@ -30,48 +33,70 @@ class GraphQLConfig {
     }
 
     /**
-     * Create a custom Date scalar for GraphQL.
+     * Custom scalar for LocalDate.
      */
     private fun dateScalar(): GraphQLScalarType {
         return GraphQLScalarType.newScalar()
             .name("Date")
-            .description("Java LocalDate as scalar")
+            .description("Date scalar")
             .coercing(object : Coercing<LocalDate, String> {
-                override fun serialize(dataFetcherResult: Any): String? {
-                    return (dataFetcherResult as? LocalDate)?.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                override fun serialize(dataFetcherResult: Any): String {
+                    return when (dataFetcherResult) {
+                        is LocalDate -> dataFetcherResult.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        else -> throw RuntimeException("Cannot serialize $dataFetcherResult as Date")
+                    }
                 }
 
-                override fun parseValue(input: Any): LocalDate? {
-                    return (input as? String)?.let { LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE) }
+                override fun parseValue(input: Any): LocalDate {
+                    return when (input) {
+                        is String -> LocalDate.parse(input, DateTimeFormatter.ISO_LOCAL_DATE)
+                        else -> throw RuntimeException("Cannot parse $input as Date")
+                    }
                 }
 
-                override fun parseLiteral(input: Any): LocalDate? {
-                    return (input as? String)?.let { LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE) }
+                override fun parseLiteral(input: Any): LocalDate {
+                    return when (input) {
+                        is String -> LocalDate.parse(input, DateTimeFormatter.ISO_LOCAL_DATE)
+                        else -> throw RuntimeException("Cannot parse literal $input as Date")
+                    }
                 }
             })
             .build()
     }
 
     /**
-     * Create a custom DateTime scalar for GraphQL.
+     * Custom scalar for LocalDateTime.
      */
     private fun dateTimeScalar(): GraphQLScalarType {
         return GraphQLScalarType.newScalar()
             .name("DateTime")
-            .description("Java LocalDateTime as scalar")
+            .description("DateTime scalar")
             .coercing(object : Coercing<LocalDateTime, String> {
-                override fun serialize(dataFetcherResult: Any): String? {
-                    return (dataFetcherResult as? LocalDateTime)?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                override fun serialize(dataFetcherResult: Any): String {
+                    return when (dataFetcherResult) {
+                        is LocalDateTime -> dataFetcherResult.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        else -> throw RuntimeException("Cannot serialize $dataFetcherResult as DateTime")
+                    }
                 }
 
-                override fun parseValue(input: Any): LocalDateTime? {
-                    return (input as? String)?.let { LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }
+                override fun parseValue(input: Any): LocalDateTime {
+                    return when (input) {
+                        is String -> LocalDateTime.parse(input, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        else -> throw RuntimeException("Cannot parse $input as DateTime")
+                    }
                 }
 
-                override fun parseLiteral(input: Any): LocalDateTime? {
-                    return (input as? String)?.let { LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }
+                override fun parseLiteral(input: Any): LocalDateTime {
+                    return when (input) {
+                        is String -> LocalDateTime.parse(input, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        else -> throw RuntimeException("Cannot parse literal $input as DateTime")
+                    }
                 }
             })
             .build()
     }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

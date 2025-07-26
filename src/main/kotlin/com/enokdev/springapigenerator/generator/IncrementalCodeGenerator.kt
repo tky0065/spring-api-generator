@@ -13,9 +13,7 @@ import java.nio.file.Paths
 /**
  * Enhanced code generator that supports incremental updates and style adaptation.
  */
-abstract class IncrementalCodeGenerator(
-    javaTemplateName: String
-) : AbstractTemplateCodeGenerator(javaTemplateName) {
+abstract class IncrementalCodeGenerator : AbstractTemplateCodeGenerator() {
 
     private val incrementalUpdateService = IncrementalUpdateService()
 
@@ -47,6 +45,7 @@ abstract class IncrementalCodeGenerator(
 
     /**
      * Generate incremental update preserving manual changes.
+     * Uses enhanced merge strategy with conflict resolution and semantic section identification.
      */
     private fun generateIncrementalUpdate(
         project: Project,
@@ -57,15 +56,24 @@ abstract class IncrementalCodeGenerator(
         val existingContent = existingFile.readText()
         val newGeneratedCode = super.generate(project, entityMetadata, packageConfig)
 
-        // Use incremental update service to merge changes
+        // Use incremental update service to merge changes with enhanced features
         val updateStrategy = IncrementalUpdateService.UpdateStrategy(
             preserveManualChanges = true,
             updateGeneratedSections = true,
             addMissingGeneratedCode = true,
-            removeObsoleteGeneratedCode = false
+            removeObsoleteGeneratedCode = false,
+            preserveManualChangesInGeneratedSections = true,
+            detectSemanticSections = true,
+            showConflictResolutionUI = true
         )
 
-        return incrementalUpdateService.mergeCode(existingContent, newGeneratedCode, updateStrategy)
+        // Pass the project for conflict resolution UI
+        return incrementalUpdateService.mergeCode(
+            existingContent, 
+            newGeneratedCode, 
+            updateStrategy, 
+            project
+        )
     }
 
     /**

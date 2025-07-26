@@ -11,7 +11,11 @@ import java.util.*
 /**
  * Generator for Data Transfer Objects (DTOs).
  */
-class DtoGenerator : AbstractTemplateCodeGenerator("DTO.java.ft") {
+class DtoGenerator : AbstractTemplateCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "DTO.java.ft"
+    }
 
     override fun getTargetFilePath(
         project: Project,
@@ -32,18 +36,35 @@ class DtoGenerator : AbstractTemplateCodeGenerator("DTO.java.ft") {
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["dtoName"] = entityMetadata.dtoName
+        model["className"] = entityMetadata.className
+        model["entityName"] = entityMetadata.className
+        model["entityNameLower"] = entityMetadata.entityNameLower
+        model["packageName"] = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+        model["dtoVarName"] = "${entityMetadata.entityNameLower}DTO"
+
+        // ========== VARIABLES POUR LES API PATHS ==========
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
         // Add DTO-specific model data
         val dtoFields = generateDtoFields(entityMetadata)
         val importStatements = generateImportStatements(entityMetadata)
         val constructors = generateConstructors(entityMetadata)
         val gettersAndSetters = generateGettersAndSetters(entityMetadata)
         val toStringAttributes = generateToStringAttributes(entityMetadata)
+        val customMethods = generateCustomMethods(entityMetadata)
 
-        model["fields"] = dtoFields
+        model["dtoFields"] = dtoFields
         model["importStatements"] = importStatements
+        model["imports"] = importStatements
         model["constructors"] = constructors
         model["gettersAndSetters"] = gettersAndSetters
         model["toStringAttributes"] = toStringAttributes
+        model["customMethods"] = customMethods
 
         return model
     }
@@ -163,5 +184,13 @@ class DtoGenerator : AbstractTemplateCodeGenerator("DTO.java.ft") {
         }
 
         return attributes.toString()
+    }
+
+    /**
+     * Generate custom methods for the DTO.
+     */
+    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
+        // Return empty string for now, can be expanded later
+        return ""
     }
 }

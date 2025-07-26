@@ -1,33 +1,29 @@
 package com.enokdev.springapigenerator.action
 
 import com.enokdev.springapigenerator.generator.impl.*
+import com.enokdev.springapigenerator.generator.*
 import com.enokdev.springapigenerator.model.EntityMetadata
-import com.enokdev.springapigenerator.service.EntityAnalyzer
-import com.enokdev.springapigenerator.service.EntityDetectionService
+import com.enokdev.springapigenerator.service.*
 import com.enokdev.springapigenerator.ui.GeneratorConfigDialog
-import com.enokdev.springapigenerator.util.BuildSystemHelper
-import com.enokdev.springapigenerator.util.FileHelper
+import com.enokdev.springapigenerator.ui.LanguageSelectionDialog
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.ReadAction
-import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VfsUtil
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiJavaFile
-import com.intellij.psi.search.FilenameIndex
-import com.intellij.psi.search.GlobalSearchScope
 import java.io.File
-
+import java.nio.file.Files
+import java.nio.file.Paths
 
 /**
- * Action for generating Spring REST code from JPA entities.
- * This action is shown in the context menu when right-clicking on a Java file.
+ * Enhanced action for generating Spring REST code from JPA entities.
+ * Supports both Java and Kotlin projects with intelligent language detection.
  */
 class GenerateSpringCodeAction : AnAction() {
 
@@ -38,463 +34,273 @@ class GenerateSpringCodeAction : AnAction() {
         val project = e.project ?: return
         val psiFile = e.getData(CommonDataKeys.PSI_FILE) ?: return
 
-        // Accepter à la fois les fichiers Java et Kotlin
-        val entityDetectionService = EntityDetectionService(project)
-        val psiClass = when {
-            psiFile is PsiJavaFile -> {
-                val classes = psiFile.classes
-                if (classes.isEmpty()) {
-                    Messages.showErrorDialog(
-                        project,
-                        "No classes found in the selected file.",
-                        "No Class Found"
-                    )
-                    return
-                }
+        try {
+            // Detect project language info
+            val languageInfo = ProjectTypeDetectionService.getProjectLanguageInfo(project)
 
-                // Try to find an entity class in the file
-                ReadAction.compute<PsiClass?, Throwable> {
-                    classes.find { entityDetectionService.isJpaEntity(it) }
-                }
-            }
-            psiFile.name.endsWith(".kt") -> {
-                // Pour les fichiers Kotlin, il faut vérifier les classes Kotlin
-                ReadAction.compute<PsiClass?, Throwable> {
-                    val classes = psiFile.children.filterIsInstance<PsiClass>()
-                    classes.find { entityDetectionService.isJpaEntity(it) }
-                }
-            }
-            else -> {
-                Messages.showErrorDialog(
-                    project,
-                    "Please select a Java or Kotlin file containing a JPA entity.",
-                    "Wrong File Type"
-                )
+            // Create language preference service directly instead of using getInstance
+            val languagePrefs = LanguagePreferenceService()
+
+            // Get target language preference
+            val targetLanguage = determineTargetLanguage(project, languageInfo, languagePrefs)
+
+            // Find the entity class - create service directly
+            val entityDetectionService = EntityDetectionService(project)
+            val psiClass = findEntityClass(psiFile, entityDetectionService)
+
+            if (psiClass == null) {
+                showNoEntityFoundError(project, psiFile.name)
                 return
             }
+
+            // Analyze the entity - create analyzer directly
+            val entityAnalyzer = EntityAnalyzer()
+            val entityMetadata = ReadAction.compute<EntityMetadata, Throwable> {
+                entityAnalyzer.analyzeEntity(psiClass)
+            }
+
+            // Show configuration dialog with corrected parameters
+            showConfigurationDialog(project, entityMetadata, targetLanguage)
+
+        } catch (e: Exception) {
+            showGenerationError(project, e)
+        }
+    }
+
+    /**
+     * Determines the target language for code generation.
+     */
+    private fun determineTargetLanguage(
+        project: Project,
+        languageInfo: ProjectTypeDetectionService.ProjectLanguageInfo,
+        languagePrefs: LanguagePreferenceService
+    ): String? {
+        // For mixed projects, prompt user to choose language
+        if (languageInfo.isMixed) {
+            return showLanguageSelectionDialog(project, languageInfo)
         }
 
-        if (psiClass == null) {
-            Messages.showErrorDialog(
-                project,
-                "No JPA entity found in the selected file. Make sure the class has @Entity and @Id annotations.",
-                "No Entity Found"
-            )
-            return
-        }
-
-        // Analyze the entity and extract metadata
-        val entityAnalyzer = EntityAnalyzer()
-        val entityMetadata = ReadAction.compute<EntityMetadata, Throwable> {
-            entityAnalyzer.analyzeEntity(psiClass)
-        }
-
-        // Show configuration dialog
-        val dialog = GeneratorConfigDialog(project, entityMetadata)
-        if (dialog.showAndGet()) {
-            // User confirmed, generate code based on configuration
-            val selectedComponents = dialog.getSelectedComponents()
-            val packageConfig = dialog.getPackageConfig()
-
-            // Déclarer securityConfig ici pour qu'il soit disponible dans tout le scope
-            var securityConfig = dialog.getSecurityConfig()
-
-            try {
-                // Check if MapStruct should be added
-                if (dialog.shouldAddMapstruct()) {
-                    val (buildSystemType, dependency) = dialog.getMapstructDependencyInfo()
-                    val result = Messages.showOkCancelDialog(
-                        project,
-                        """
-                        MapStruct n'a pas été détecté dans votre projet. Voulez-vous ajouter MapStruct 1.6.3 à votre projet?
-                        
-                        La dépendance suivante sera nécessaire pour $buildSystemType:
-                        
-                        $dependency
-                        """.trimIndent(),
-                        "Ajouter MapStruct 1.6.3",
-                        "Ajouter",
-                        "Non",
-                        Messages.getQuestionIcon()
-                    )
-
-                    if (result == Messages.OK) {
-                        BuildSystemHelper.addMapstructDependency(project, buildSystemType)
-                    }
-                }
-
-                // Check if Swagger should be added
-                if (dialog.shouldAddSwagger()) {
-                    val (buildSystemType, dependency) = dialog.getSwaggerDependencyInfo()
-                    val result = Messages.showOkCancelDialog(
-                        project,
-                        """
-                        Swagger/OpenAPI n'a pas été détecté dans votre projet. Voulez-vous ajouter SpringDoc OpenAPI 2.8.0 à votre projet?
-                        
-                        La dépendance suivante sera nécessaire pour $buildSystemType:
-                        
-                        $dependency
-                        """.trimIndent(),
-                        "Ajouter Swagger/OpenAPI",
-                        "Ajouter",
-                        "Non",
-                        Messages.getQuestionIcon()
-                    )
-
-                    if (result == Messages.OK) {
-                        BuildSystemHelper.addSwaggerDependency(project, buildSystemType)
-                    }
-                }
-
-                // Check if Spring Security should be added
-                if (dialog.shouldAddSpringSecurity()) {
-                    val (buildSystemType, dependency) = dialog.getSpringSecurityDependencyInfo()
-                    val result = Messages.showOkCancelDialog(
-                        project,
-                        """
-                        Spring Security n'a pas été détecté dans votre projet. Voulez-vous ajouter Spring Security avec JWT à votre projet?
-                        
-                        Les dépendances suivantes seront nécessaires pour $buildSystemType:
-                        
-                        $dependency
-                        """.trimIndent(),
-                        "Ajouter Spring Security",
-                        "Ajouter",
-                        "Non",
-                        Messages.getQuestionIcon()
-                    )
-
-                    if (result == Messages.OK) {
-                        BuildSystemHelper.addSpringSecurityDependency(project, buildSystemType)
-
-                        // Generate security files
-                        val securityConfig = dialog.getSecurityConfig()
-                        if (securityConfig != null) {
-                            WriteCommandAction.runWriteCommandAction(project) {
-                                val securityGenerator = SecurityConfigGenerator()
-
-                                // Generate the main security config
-                                val securityConfigContent = securityGenerator.generate(project, entityMetadata, packageConfig)
-                                val securityConfigPath = securityGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                val securityConfigFile = File(securityConfigPath)
-                                securityConfigFile.parentFile.mkdirs()
-                                securityConfigFile.writeText(securityConfigContent)
-
-                                // Generate User management components
-                                securityGenerator.generateUserModel(project, entityMetadata, packageConfig)
-                                securityGenerator.generateUserRepository(project, entityMetadata, packageConfig)
-                                securityGenerator.generateUserService(project, entityMetadata, packageConfig)
-                                securityGenerator.generateAuthController(project, entityMetadata, packageConfig)
-
-                                // Generate JWT util if needed
-                                if (securityConfig.securityLevel == SecurityConfigGenerator.SecurityLevel.JWT) {
-                                    securityGenerator.generateJwtUtil(project, entityMetadata, packageConfig)
-                                }
-
-                                // Generate user details service if requested
-                                if (securityConfig.generateUserDetailsService) {
-                                    securityGenerator.generateUserDetailsService(project, entityMetadata, packageConfig)
-                                }
-
-                                // Refresh the project view
-                                LocalFileSystem.getInstance().refresh(true)
-
-                                // Show confirmation message
-                                ApplicationManager.getApplication().invokeLater {
-                                    Messages.showInfoMessage(
-                                        project,
-                                        "Spring Security configuration files have been generated successfully.",
-                                        "Spring Security Generated"
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Check if GraphQL should be added
-                val graphqlOption = dialog.getGraphQLOption()
-                if (graphqlOption == true) {
-                    WriteCommandAction.runWriteCommandAction(project) {
-                        // Ajouter GraphQL dependencies automatiquement
-                        BuildSystemHelper.addGraphQLDependency(project, BuildSystemHelper.detectBuildSystemType(project))
-
-                        val graphQLGenerator = GraphQLGenerator()
-
-                        // Generate GraphQL schema
-                        val schemaContent = graphQLGenerator.generateSchema(project, entityMetadata, packageConfig)
-                        val schemaPath = graphQLGenerator.getSchemaFilePath(project, packageConfig)
-                        val schemaFile = File(schemaPath)
-                        schemaFile.parentFile.mkdirs()
-                        schemaFile.writeText(schemaContent)
-
-                        // Generate GraphQL config
-                        val configContent = graphQLGenerator.generateConfig(project, entityMetadata, packageConfig)
-                        val configPath = graphQLGenerator.getConfigFilePath(project, packageConfig)
-                        val configFile = File(configPath)
-                        configFile.parentFile.mkdirs()
-                        configFile.writeText(configContent)
-
-                        // Generate GraphQL controller
-                        val controllerContent = graphQLGenerator.generateController(project, entityMetadata, packageConfig)
-                        val controllerPath = graphQLGenerator.getControllerFilePath(project, entityMetadata, packageConfig)
-                        val controllerFile = File(controllerPath)
-                        controllerFile.parentFile.mkdirs()
-                        controllerFile.writeText(controllerContent)
-
-                        // Toujours générer les fichiers de sécurité pour GraphQL
-                        val securityGenerator = SecurityConfigGenerator()
-
-                        // Generate the main security config
-                        val securityConfigContent = securityGenerator.generate(project, entityMetadata, packageConfig)
-                        val securityConfigPath = securityGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                        val securityConfigFile = File(securityConfigPath)
-                        securityConfigFile.parentFile.mkdirs()
-                        securityConfigFile.writeText(securityConfigContent)
-
-                        // Generate User management components
-                        securityGenerator.generateUserModel(project, entityMetadata, packageConfig)
-                        securityGenerator.generateUserRepository(project, entityMetadata, packageConfig)
-                        securityGenerator.generateUserService(project, entityMetadata, packageConfig)
-                        securityGenerator.generateAuthController(project, entityMetadata, packageConfig)
-
-                        // Generate JWT util
-                        securityGenerator.generateJwtUtil(project, entityMetadata, packageConfig)
-
-                        // Generate user details service
-                        securityGenerator.generateUserDetailsService(project, entityMetadata, packageConfig)
-
-                        // Ajouter Spring Security dependencies automatiquement
-                        BuildSystemHelper.addSpringSecurityDependency(project, BuildSystemHelper.detectBuildSystemType(project))
-
-                        // Refresh the project view
-                        LocalFileSystem.getInstance().refresh(true)
-
-                        // Show confirmation message
-                        ApplicationManager.getApplication().invokeLater {
-                            Messages.showInfoMessage(
-                                project,
-                                "GraphQL files and Security files have been generated successfully.",
-                                "GraphQL and Security Generated"
-                            )
-                        }
-                    }
-                }
-
-                // Check if OpenAPI 3.0 should be added
-                if (dialog.shouldAddOpenApi()) {
-                    val openApiInfo = dialog.getOpenApiDependencyInfo()
-                    val buildSystemType = openApiInfo.first
-                    val dependency = openApiInfo.second
-                    val result = Messages.showOkCancelDialog(
-                        project,
-                        """
-                        OpenAPI 3.0 n'a pas été détecté dans votre projet. Voulez-vous ajouter SpringDoc OpenAPI 3.0 à votre projet?
-                        
-                        La dépendance suivante sera nécessaire pour $buildSystemType:
-                        
-                        $dependency
-                        """.trimIndent(),
-                        "Ajouter OpenAPI 3.0",
-                        "Ajouter",
-                        "Non",
-                        Messages.getQuestionIcon()
-                    )
-
-                    if (result == Messages.OK) {
-                        BuildSystemHelper.addOpenApiDependency(project, buildSystemType)
-                    }
-                }
-
-                // Generate code for each selected component
-                val generatedFiles = mutableListOf<String>()
-                val progressTitle = "Generating Spring Boot Code"
-                val progressIndicator = com.intellij.openapi.progress.ProgressManager.getInstance().run(
-                    object : com.intellij.openapi.progress.Task.Backgroundable(project, progressTitle, false) {
-                        override fun run(indicator: com.intellij.openapi.progress.ProgressIndicator) {
-                            indicator.isIndeterminate = false
-                            val totalSteps = selectedComponents.size
-                            var currentStep = 0
-
-                            if (selectedComponents.contains("dto")) {
-                                indicator.text = "Generating DTOs..."
-                                indicator.fraction = (++currentStep).toDouble() / totalSteps
-                                val dtoGenerator = DtoGenerator()
-                                val dtoContent = dtoGenerator.generate(project, entityMetadata, packageConfig)
-                                val dtoFile = dtoGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                FileHelper.writeToFile(project, dtoFile, dtoContent)
-                                generatedFiles.add(dtoFile)
-                            }
-
-                            if (selectedComponents.contains("mapper")) {
-                                indicator.text = "Generating Mappers..."
-                                indicator.fraction = (++currentStep).toDouble() / totalSteps
-                                val mapperGenerator = MapperGenerator()
-                                val mapperContent = mapperGenerator.generate(project, entityMetadata, packageConfig)
-                                val mapperFile = mapperGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                FileHelper.writeToFile(project, mapperFile, mapperContent)
-                                generatedFiles.add(mapperFile)
-                            }
-
-                            if (selectedComponents.contains("repository")) {
-                                indicator.text = "Generating Repositories..."
-                                indicator.fraction = (++currentStep).toDouble() / totalSteps
-                                val repositoryGenerator = RepositoryGenerator()
-                                val repositoryContent = repositoryGenerator.generate(project, entityMetadata, packageConfig)
-                                val repositoryFile = repositoryGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                FileHelper.writeToFile(project, repositoryFile, repositoryContent)
-                                generatedFiles.add(repositoryFile)
-                            }
-
-                            if (selectedComponents.contains("service")) {
-                                indicator.text = "Generating Services..."
-                                indicator.fraction = (++currentStep).toDouble() / totalSteps
-                                val serviceGenerator = ServiceGenerator()
-                                val serviceContent = serviceGenerator.generate(project, entityMetadata, packageConfig)
-                                val serviceFile = serviceGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                FileHelper.writeToFile(project, serviceFile, serviceContent)
-                                // ServiceImpl is handled internally by ServiceGenerator
-                                generatedFiles.add(serviceFile)
-                            }
-
-                            if (selectedComponents.contains("controller")) {
-                                indicator.text = "Generating Controllers..."
-                                indicator.fraction = (++currentStep).toDouble() / totalSteps
-                                val controllerGenerator = ControllerGenerator()
-                                val controllerContent = controllerGenerator.generate(project, entityMetadata, packageConfig)
-                                val controllerFile = controllerGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                FileHelper.writeToFile(project, controllerFile, controllerContent)
-                                generatedFiles.add(controllerFile)
-
-                                // Relationship controller generation has been disabled
-                                // Users will implement these controllers manually if needed
-                            }
-
-                            if (selectedComponents.contains("test")) {
-                                indicator.text = "Generating Tests..."
-                                indicator.fraction = (++currentStep).toDouble() / totalSteps
-                                val testGenerator = TestGenerator()
-                                val testContent = testGenerator.generate(project, entityMetadata, packageConfig)
-                                val testFile = testGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                FileHelper.writeToFile(project, testFile, testContent)
-                                generatedFiles.add(testFile)
-                            }
-
-                            // Generate Swagger configuration if needed
-                            ReadAction.compute<Boolean, Throwable> {
-                                // Utilisation de getVirtualFilesByName avec les bons paramètres
-                                val hasSwaggerConfig = FilenameIndex.getVirtualFilesByName(
-                                    "SwaggerConfig.java",
-                                    true, // caseSensitively
-                                    GlobalSearchScope.projectScope(project)
-                                ).any()
-
-                                selectedComponents.contains("controller") && !hasSwaggerConfig
-                            }.let { shouldGenerateSwagger ->
-                                if (shouldGenerateSwagger) {
-                                    indicator.text = "Generating Swagger Configuration..."
-                                    val swaggerGenerator = SwaggerConfigGenerator()
-                                    val swaggerContent = swaggerGenerator.generate(project, entityMetadata, packageConfig)
-                                    val swaggerFile = swaggerGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                    FileHelper.writeToFile(project, swaggerFile, swaggerContent)
-                                    generatedFiles.add(swaggerFile)
-                                }
-                            }
-
-                            // Generate Global Exception Handler if needed
-                            ReadAction.compute<Boolean, Throwable> {
-                                // Utilisation de getVirtualFilesByName avec les bons paramètres
-                                val hasExceptionHandler = FilenameIndex.getVirtualFilesByName(
-                                    "GlobalExceptionHandler.java",
-                                    true, // caseSensitively
-                                    GlobalSearchScope.projectScope(project)
-                                ).any()
-
-                                selectedComponents.contains("controller") && !hasExceptionHandler
-                            }.let { shouldGenerateExceptionHandler ->
-                                if (shouldGenerateExceptionHandler) {
-                                    indicator.text = "Generating Exception Handler..."
-                                    val exceptionGenerator = GlobalExceptionHandlerGenerator()
-                                    val exceptionContent = exceptionGenerator.generate(project, entityMetadata, packageConfig)
-                                    val exceptionFile = exceptionGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                    FileHelper.writeToFile(project, exceptionFile, exceptionContent)
-                                    generatedFiles.add(exceptionFile)
-                                }
-                            }
-
-                            // Generate OpenAPI 3.0 configuration if needed
-                            ReadAction.compute<Boolean, Throwable> {
-                                val hasOpenApiConfig = FilenameIndex.getVirtualFilesByName(
-                                    "OpenApiConfig.java",
-                                    true, // caseSensitively
-                                    GlobalSearchScope.projectScope(project)
-                                ).any()
-
-                                dialog.shouldAddOpenApi() && !hasOpenApiConfig
-                            }.let { shouldGenerateOpenApi ->
-                                if (shouldGenerateOpenApi) {
-                                    indicator.text = "Generating OpenAPI 3.0 Configuration..."
-                                    val openApiGenerator = OpenApiConfigGenerator()
-                                    val openApiContent = openApiGenerator.generate(project, entityMetadata, packageConfig)
-                                    val openApiFile = openApiGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-                                    FileHelper.writeToFile(project, openApiFile, openApiContent)
-                                    generatedFiles.add(openApiFile)
-                                }
-                            }
-
-                            indicator.text = "Refreshing Files..."
-                            indicator.fraction = 1.0
-                            ApplicationManager.getApplication().invokeLater {
-                                WriteAction.runAndWait<Throwable> {
-                                    VfsUtil.markDirtyAndRefresh(
-                                        true, true, true,
-                                        LocalFileSystem.getInstance().findFileByPath(project.basePath!!)
-                                    )
-                                }
-                            }
-                        }
-
-                        override fun onSuccess() {
-                            ApplicationManager.getApplication().invokeLater {
-                                Messages.showInfoMessage(
-                                    project,
-                                    "Successfully generated ${generatedFiles.size} files for entity ${entityMetadata.className}",
-                                    "Code Generation Complete"
-                                )
-
-                                // Open the first generated file in the editor
-                                if (generatedFiles.isNotEmpty()) {
-                                    val file = LocalFileSystem.getInstance().findFileByPath(generatedFiles.first())
-                                    if (file != null) {
-                                        com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(file, true)
-                                    }
-                                }
-                            }
-                        }
-
-                        override fun onThrowable(error: Throwable) {
-                            ApplicationManager.getApplication().invokeLater {
-                                Messages.showErrorDialog(
-                                    project,
-                                    "Error generating code: ${error.message}",
-                                    "Generation Error"
-                                )
-                                error.printStackTrace()
-                            }
-                        }
-                    }
-                )
-            } catch (e: Exception) {
-                Messages.showErrorDialog(
-                    project,
-                    "Error generating code: ${e.message}",
-                    "Generation Error"
-                )
-                e.printStackTrace()
+        // Auto-detect based on project
+        return when (languageInfo.primaryLanguage) {
+            ProjectTypeDetectionService.ProjectLanguage.KOTLIN -> "kotlin"
+            ProjectTypeDetectionService.ProjectLanguage.JAVA -> "java"
+            ProjectTypeDetectionService.ProjectLanguage.MIXED -> {
+                // For mixed without user preference, use the majority language
+                if (languageInfo.kotlinRatio > 0.5) "kotlin" else "java"
             }
         }
     }
 
+    /**
+     * Shows language selection dialog for mixed projects.
+     */
+    private fun showLanguageSelectionDialog(
+        project: Project,
+        languageInfo: ProjectTypeDetectionService.ProjectLanguageInfo
+    ): String? {
+        val dialog = LanguageSelectionDialog(project, languageInfo)
+        return if (dialog.showAndGet()) {
+            dialog.getSelectedLanguage()
+        } else {
+            null // User cancelled
+        }
+    }
+
+    /**
+     * Finds the entity class in the given file.
+     */
+    private fun findEntityClass(psiFile: com.intellij.psi.PsiFile, entityDetectionService: EntityDetectionService): PsiClass? {
+        return ReadAction.compute<PsiClass?, Throwable> {
+            when {
+                psiFile is PsiJavaFile -> {
+                    val classes = psiFile.classes
+                    classes.find { entityDetectionService.isJpaEntity(it) }
+                }
+                psiFile.name.endsWith(".kt") -> {
+                    // For Kotlin files, try to find the corresponding Java light class
+                    findKotlinEntityClass(psiFile, entityDetectionService)
+                }
+                else -> null
+            }
+        }
+    }
+
+    /**
+     * Finds entity class from Kotlin file.
+     */
+    private fun findKotlinEntityClass(psiFile: com.intellij.psi.PsiFile, entityDetectionService: EntityDetectionService): PsiClass? {
+        try {
+            val fileContent = psiFile.text
+            val packageName = extractPackageFromKotlinFile(fileContent)
+            val className = extractClassNameFromKotlinFile(fileContent)
+
+            if (className.isNotEmpty()) {
+                val fullyQualifiedName = if (packageName.isNotEmpty()) "$packageName.$className" else className
+                val javaPsiFacade = com.intellij.psi.JavaPsiFacade.getInstance(psiFile.project)
+                val psiClass = javaPsiFacade.findClass(fullyQualifiedName, com.intellij.psi.search.GlobalSearchScope.allScope(psiFile.project))
+
+                return if (psiClass != null && entityDetectionService.isJpaEntity(psiClass)) {
+                    psiClass
+                } else null
+            }
+        } catch (e: Exception) {
+            // Log error but don't fail completely
+            com.intellij.openapi.diagnostic.Logger.getInstance(this::class.java).warn("Error processing Kotlin file: ${e.message}")
+        }
+        return null
+    }
+
+    /**
+     * Extracts package name from Kotlin file content.
+     */
+    private fun extractPackageFromKotlinFile(content: String): String {
+        val packagePatterns = listOf(
+            Regex("^\\s*package\\s+([\\w.]+)\\s*$", RegexOption.MULTILINE),
+            Regex("package\\s+([\\w.]+)", RegexOption.MULTILINE)
+        )
+
+        for (pattern in packagePatterns) {
+            val match = pattern.find(content)
+            if (match != null) {
+                return match.groupValues[1].trim()
+            }
+        }
+        return ""
+    }
+
+    /**
+     * Extracts class name from Kotlin file content.
+     */
+    private fun extractClassNameFromKotlinFile(content: String): String {
+        val classPatterns = listOf(
+            Regex("@Entity\\s*\\n\\s*(?:@[^\\n]*\\s*\\n\\s*)*(?:data\\s+)?class\\s+(\\w+)", RegexOption.MULTILINE),
+            Regex("(?:data\\s+)?class\\s+(\\w+)\\s*\\(", RegexOption.MULTILINE),
+            Regex("class\\s+(\\w+)", RegexOption.MULTILINE)
+        )
+
+        for (pattern in classPatterns) {
+            val match = pattern.find(content)
+            if (match != null) {
+                return match.groupValues[1].trim()
+            }
+        }
+        return ""
+    }
+
+    /**
+     * Shows the configuration dialog with corrected parameters.
+     */
+    private fun showConfigurationDialog(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        targetLanguage: String?
+    ) {
+        // Use the existing GeneratorConfigDialog constructor
+        val dialog = GeneratorConfigDialog(project, entityMetadata)
+        if (dialog.showAndGet()) {
+            val selectedComponents = dialog.getSelectedComponents()
+            val packageConfig = createPackageConfiguration(entityMetadata)
+
+            generateCode(project, entityMetadata, selectedComponents, packageConfig, targetLanguage)
+        }
+    }
+
+    /**
+     * Creates package configuration from entity metadata.
+     */
+    private fun createPackageConfiguration(entityMetadata: EntityMetadata): Map<String, String> {
+        return mapOf(
+            "basePackage" to entityMetadata.entityBasePackage,
+            "domainPackage" to entityMetadata.domainPackage,
+            "dtoPackage" to entityMetadata.dtoPackage,
+            "repositoryPackage" to entityMetadata.repositoryPackage,
+            "servicePackage" to entityMetadata.servicePackage,
+            "mapperPackage" to entityMetadata.mapperPackage,
+            "controllerPackage" to entityMetadata.controllerPackage
+        )
+    }
+
+    /**
+     * Generates the selected code components.
+     */
+    private fun generateCode(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        selectedComponents: Set<String>,
+        packageConfig: Map<String, String>,
+        targetLanguage: String?
+    ) {
+        WriteCommandAction.runWriteCommandAction(project) {
+            try {
+                val generators = createGenerators(selectedComponents)
+                val generatedFiles = mutableListOf<String>()
+
+                for (generator in generators) {
+                    try {
+                        val code = if (generator is AbstractTemplateCodeGenerator && targetLanguage != null) {
+                            generator.generateWithLanguage(project, entityMetadata, packageConfig, targetLanguage)
+                        } else {
+                            generator.generate(project, entityMetadata, packageConfig)
+                        }
+
+                        val targetPath = generator.getTargetFilePath(project, entityMetadata, packageConfig)
+                        writeCodeToFile(targetPath, code)
+                        generatedFiles.add(targetPath)
+
+                    } catch (e: Exception) {
+                        val generatorName = generator.javaClass.simpleName
+                        Messages.showErrorDialog(
+                            project,
+                            "Failed to generate $generatorName: ${e.message}",
+                            "Generation Error"
+                        )
+                    }
+                }
+
+                showSuccessMessage(project, generatedFiles, targetLanguage)
+
+            } catch (e: Exception) {
+                showGenerationError(project, e)
+            }
+        }
+    }
+
+    /**
+     * Creates generators based on selected components.
+     */
+    private fun createGenerators(selectedComponents: Set<String>): List<CodeGenerator> {
+        val generators = mutableListOf<CodeGenerator>()
+
+        selectedComponents.forEach { component ->
+            when (component.lowercase()) {
+                "controller" -> generators.add(ControllerGenerator())
+                "service" -> generators.add(ServiceGenerator())
+                "repository" -> generators.add(RepositoryGenerator())
+                "dto" -> generators.add(DtoGenerator())
+                "mapper" -> generators.add(MapperGenerator())
+                "test" -> generators.add(TestGenerator())
+                "swaggerconfig" -> generators.add(SwaggerConfigGenerator())
+                "globalexceptionhandler" -> generators.add(GlobalExceptionHandlerGenerator())
+                "securityconfig" -> generators.add(SecurityConfigGenerator())
+                "graphql" -> generators.add(GraphQLGenerator())
+                "openapiconfig" -> generators.add(OpenApiConfigGenerator())
+            }
+        }
+
+        return generators
+    }
+
+    /**
+     * Writes generated code to a file.
+     */
+    private fun writeCodeToFile(filePath: String, code: String) {
+        val file = File(filePath)
+        file.parentFile?.mkdirs()
+        file.writeText(code)
+
+        // Refresh the virtual file system
+        LocalFileSystem.getInstance().refreshAndFindFileByPath(filePath)
+    }
 
     /**
      * Called to update UI components when action is visible.
@@ -513,5 +319,51 @@ class GenerateSpringCodeAction : AnAction() {
      */
     override fun getActionUpdateThread(): ActionUpdateThread {
         return ActionUpdateThread.BGT
+    }
+
+    /**
+     * Shows success message with language info.
+     */
+    private fun showSuccessMessage(project: Project, generatedFiles: List<String>, targetLanguage: String?) {
+        val languageText = when (targetLanguage?.lowercase()) {
+            "kotlin" -> "Kotlin"
+            "java" -> "Java"
+            else -> "code"
+        }
+
+        Messages.showInfoMessage(
+            project,
+            "Successfully generated ${generatedFiles.size} $languageText files:\n" +
+            generatedFiles.joinToString("\n") { "• ${File(it).name}" },
+            "Code Generation Complete"
+        )
+    }
+
+    /**
+     * Shows error when no entity is found.
+     */
+    private fun showNoEntityFoundError(project: Project, fileName: String) {
+        val extension = if (fileName.endsWith(".kt")) "Kotlin" else "Java"
+        Messages.showErrorDialog(
+            project,
+            "No JPA entity found in the selected $extension file. " +
+            "Make sure the class is annotated with @Entity and properly configured.",
+            "No Entity Found"
+        )
+    }
+
+    /**
+     * Shows generation error with helpful information.
+     */
+    private fun showGenerationError(project: Project, error: Exception) {
+        Messages.showErrorDialog(
+            project,
+            "Failed to generate Spring code: ${error.message}\n\n" +
+            "Please check that:\n" +
+            "• The selected file contains a valid JPA entity\n" +
+            "• All required dependencies are present\n" +
+            "• The project structure is correct",
+            "Generation Error"
+        )
     }
 }

@@ -20,6 +20,7 @@ dependencies {
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
         bundledPlugin("com.intellij.java")              // require Java support at runtime
+        bundledPlugin("org.jetbrains.kotlin")           // require Kotlin support at runtime
     }
 
     implementation("org.freemarker:freemarker:2.3.32")

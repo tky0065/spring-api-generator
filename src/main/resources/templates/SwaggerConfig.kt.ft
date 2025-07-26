@@ -1,4 +1,4 @@
-package ${configPackage}
+package ${packageName!"${basePackage}.config"}
 
 import io.swagger.v3.oas.models.OpenAPI
 import io.swagger.v3.oas.models.info.Contact
@@ -6,20 +6,30 @@ import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.info.License
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Swagger configuration for API documentation.
  */
 @Configuration
-class SwaggerConfig {
+class ${className!"SwaggerConfig"} {
 
     @Bean
     fun springShopOpenAPI(): OpenAPI {
         return OpenAPI()
-            .info(Info().title("${apiTitle}")
-                .description("${apiDescription}")
-                .version("${apiVersion}")
-                .license(License().name("${apiLicense}"))
-                .contact(Contact().email("${apiContact}")))
+            .info(Info().title("${apiTitle!"API Documentation"}")
+                .description("${apiDescription!"API for managing entities"}")
+                .version("${apiVersion!"1.0.0"}")
+                .license(License().name("${apiLicense!"Apache 2.0"}").url("${apiLicenseUrl!"http://www.apache.org/licenses/LICENSE-2.0.html"}"))
+                .contact(Contact()
+                    .email("${apiContact!"developer@example.com"}")
+                    .name("${apiContactName!"API Support"}")
+                    .url("${apiContactUrl!"https://example.com/support"}")))
     }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

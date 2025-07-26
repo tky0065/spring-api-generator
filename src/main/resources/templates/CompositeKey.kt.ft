@@ -1,24 +1,33 @@
-package ${packageName}
+package ${packageName!"${basePackage}.entity"}
 
 import jakarta.persistence.Embeddable
 import java.io.Serializable
 import java.util.*
+<#if imports??>
+${imports}
+</#if>
 
 /**
- * Composite key class for ${entityName} (Kotlin version).
+ * Composite key class for ${entityName!"Entity"} (Kotlin version).
  * Generated to support composite primary keys.
  */
 @Embeddable
-data class ${className}(
+data class ${className!"CompositeKey"}(
+<#if keyFields?? && keyFields?has_content>
 <#list keyFields as field>
     var ${field.name}: ${field.type}<#if field.nullable>?</#if> = <#if field.type == "String">""<#elseif field.nullable>null<#else>0</#if><#if field_has_next>,</#if>
 </#list>
+<#else>
+    var id1: Long = 0L,
+    var id2: Long = 0L
+</#if>
 ) : Serializable {
 
     companion object {
         private const val serialVersionUID = 1L
     }
 
+<#if keyFields?? && keyFields?has_content && keyFields?size gt 1>
     /**
      * Creates a composite key with all required fields.
      */
@@ -31,34 +40,44 @@ data class ${className}(
         this.${field.name} = ${field.name}
 </#list>
     }
+</#if>
 
     /**
      * Checks if this composite key is valid (all required fields are set).
      */
     fun isValid(): Boolean {
-        return <#list keyFields as field><#if !field.nullable>${field.name} != <#if field.type == "String">""<#else>0</#if><#if field_has_next> && </#if></#if></#list>
+        return <#if keyFields?? && keyFields?has_content><#list keyFields as field><#if !field.nullable>${field.name} != <#if field.type == "String">""<#else>0</#if><#if field_has_next> && </#if></#if></#list><#else>id1 != 0L && id2 != 0L</#if>
     }
 
     /**
      * Creates a string representation suitable for logging.
      */
     override fun toString(): String {
-        return "${className}(" +
+        return "${className!"CompositeKey"}(" +
+<#if keyFields?? && keyFields?has_content>
 <#list keyFields as field>
                 "${field.name}=$${field.name}<#if field_has_next>, " +</#if>
 </#list>
+<#else>
+                "id1=$id1, " +
+                "id2=$id2"
+</#if>
                 ")"
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is ${className}) return false
+        if (other !is ${className!"CompositeKey"}) return false
 
-        return <#list keyFields as field>${field.name} == other.${field.name}<#if field_has_next> &&
-               </#if></#list>
+        return <#if keyFields?? && keyFields?has_content><#list keyFields as field>${field.name} == other.${field.name}<#if field_has_next> &&
+               </#if></#list><#else>id1 == other.id1 && id2 == other.id2</#if>
     }
 
     override fun hashCode(): Int {
-        return Objects.hash(<#list keyFields as field>${field.name}<#if field_has_next>, </#if></#list>)
+        return Objects.hash(<#if keyFields?? && keyFields?has_content><#list keyFields as field>${field.name}<#if field_has_next>, </#if></#list><#else>id1, id2</#if>)
     }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

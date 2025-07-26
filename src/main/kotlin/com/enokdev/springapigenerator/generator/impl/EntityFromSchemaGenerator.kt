@@ -26,11 +26,28 @@ class EntityFromSchemaGenerator(private val project: Project) {
 
         tables.forEach { table ->
             val entityCode = generateEntityCode(table, basePackage)
-            val filePath = getEntityFilePath(project, table.entityName, basePackage)
+            val filePath = getEntityFilePath(table.entityName, basePackage)
             result[filePath] = entityCode
         }
 
         return result
+    }
+
+    /**
+     * Get the file path for an entity class.
+     *
+     * @param entityName Name of the entity
+     * @param basePackage Base package for the entity
+     * @return Full file path for the entity
+     */
+    private fun getEntityFilePath(entityName: String, basePackage: String): String {
+        val basePath = project.basePath ?: throw IllegalStateException("Project base path is null")
+        val isKotlin = isKotlinProject(project)
+        val extension = if (isKotlin) "kt" else "java"
+        val srcPath = if (isKotlin) "src/main/kotlin" else "src/main/java"
+        val packagePath = basePackage.replace(".", "/")
+
+        return "$basePath/$srcPath/$packagePath/entity/$entityName.$extension"
     }
 
     /**
@@ -43,106 +60,102 @@ class EntityFromSchemaGenerator(private val project: Project) {
     private fun generateEntityCode(table: Table, basePackage: String): String {
         val entityName = table.entityName
         val tableName = table.name
+        val isKotlin = isKotlinProject(project)
 
         val code = StringBuilder()
 
         // Package declaration
-        code.append("package $basePackage.entity;\n\n")
+        if (isKotlin) {
+            code.append("package $basePackage.entity\n\n")
 
-        // Imports
-        val imports = generateImports(table)
-        code.append(imports).append("\n")
+            // Imports for Kotlin
+            code.append("import jakarta.persistence.*\n")
+            code.append("import jakarta.validation.constraints.*\n")
+            code.append("import java.time.LocalDateTime\n")
+            code.append("import java.util.*\n\n")
 
-        // Class javadoc
-        code.append("/**\n")
-        code.append(" * Entity for the ${table.name} table.\n")
-        if (table.comments.isNotEmpty()) {
-            code.append(" * ${table.comments}\n")
+            // Entity annotation and class declaration
+            code.append("@Entity\n")
+            code.append("@Table(name = \"$tableName\")\n")
+            code.append("data class $entityName(\n")
+
+            // Generate fields for Kotlin
+            val fields = generateKotlinFields(table)
+            code.append(fields)
+
+            code.append(")")
+        } else {
+            code.append("package $basePackage.entity;\n\n")
+
+            // Imports for Java
+            code.append("import jakarta.persistence.*;\n")
+            code.append("import jakarta.validation.constraints.*;\n")
+            code.append("import java.time.LocalDateTime;\n")
+            code.append("import java.util.*;\n\n")
+
+            // Entity annotation and class declaration
+            code.append("@Entity\n")
+            code.append("@Table(name = \"$tableName\")\n")
+            code.append("public class $entityName {\n\n")
+
+            // Generate fields for Java
+            val fields = generateJavaFields(table)
+            code.append(fields)
+
+            // Generate getters and setters for Java
+            val gettersSetters = generateJavaGettersSetters(table)
+            code.append(gettersSetters)
+
+            code.append("}")
         }
-        code.append(" */\n")
-
-        // Class annotations
-        code.append("@Entity\n")
-        code.append("@Table(name = \"$tableName\")\n")
-        code.append("@Getter\n")
-        code.append("@Setter\n")
-        code.append("@NoArgsConstructor\n")
-        code.append("@AllArgsConstructor\n")
-        code.append("public class $entityName extends AbstractEntity<${getPrimaryKeyType(table)}> {\n\n")
-
-        // Fields
-        code.append(generateFields(table))
-
-        // ID getter and setter implementation
-        val pkColumn = table.getPrimaryKeyColumn()
-        if (pkColumn != null) {
-            code.append("\n    @Override\n")
-            code.append("    public ${pkColumn.javaType} getId() {\n")
-            code.append("        return ${pkColumn.fieldName};\n")
-            code.append("    }\n\n")
-
-            code.append("    @Override\n")
-            code.append("    public void setId(${pkColumn.javaType} id) {\n")
-            code.append("        this.${pkColumn.fieldName} = id;\n")
-            code.append("    }\n")
-        }
-
-        // Close class
-        code.append("}\n")
 
         return code.toString()
     }
 
     /**
-     * Generate entity imports.
-     *
-     * @param table Database table
-     * @return Import statements
+     * Generate Kotlin fields from table columns.
      */
-    private fun generateImports(table: Table): String {
-        val imports = mutableSetOf(
-            "javax.persistence.*",
-            "lombok.Getter",
-            "lombok.Setter",
-            "lombok.NoArgsConstructor",
-            "lombok.AllArgsConstructor"
-        )
-
-        // Add imports for column types
-        table.columns.forEach { column ->
-            when {
-                column.javaType.startsWith("java.") -> imports.add(column.javaType)
-            }
-        }
-
-        // Sort and join imports
-        return imports.sorted().joinToString("\n") { "import $it;" }
-    }
-
-    /**
-     * Generate entity fields.
-     *
-     * @param table Database table
-     * @return Field declarations
-     */
-    private fun generateFields(table: Table): String {
+    private fun generateKotlinFields(table: Table): String {
         val fields = StringBuilder()
 
-        // Process primary key field
-        val pkColumn = table.getPrimaryKeyColumn()
-        if (pkColumn != null) {
-            fields.append(generateFieldCode(pkColumn, true))
-        }
+        table.columns.forEachIndexed { index, column ->
+            // Check if this column is a primary key
+            val isPrimaryKey = table.primaryKeyColumns.contains(column.name)
 
-        // Process regular fields
-        val regularColumns = table.getNonPrimaryKeyColumns()
-        regularColumns.forEach { column ->
-            // Check if it's a foreign key
-            val foreignKey = table.foreignKeys.find { it.columnName == column.name }
-            if (foreignKey != null) {
-                fields.append(generateRelationshipField(column, foreignKey))
-            } else {
-                fields.append(generateFieldCode(column, false))
+            // Add primary key annotation if it's an ID column
+            if (isPrimaryKey) {
+                fields.append("    @Id\n")
+                if (column.autoIncrement) {
+                    fields.append("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
+                }
+            }
+
+            // Add column annotation
+            fields.append("    @Column(name = \"${column.name}\"")
+            if (!column.nullable) {
+                fields.append(", nullable = false")
+            }
+            if (column.size > 0) {
+                fields.append(", length = ${column.size}")
+            }
+            fields.append(")\n")
+
+            // Add validation annotations
+            if (!column.nullable && column.sqlTypeName != "Boolean") {
+                fields.append("    @NotNull\n")
+            }
+
+            // Field declaration
+            val kotlinType = mapDbTypeToKotlinType(column.sqlTypeName, column.nullable)
+            val defaultValue = if (column.nullable) " = null" else ""
+            fields.append("    val ${toCamelCase(column.name)}: $kotlinType$defaultValue")
+
+            if (index < table.columns.size - 1) {
+                fields.append(",")
+            }
+            fields.append("\n")
+            if (index < table.columns.size - 1) {
+                fields.append("\n")
             }
         }
 
@@ -150,121 +163,130 @@ class EntityFromSchemaGenerator(private val project: Project) {
     }
 
     /**
-     * Generate code for a regular field.
-     *
-     * @param column Database column
-     * @param isPrimaryKey Whether this is a primary key field
-     * @return Field declaration
+     * Generate Java fields from table columns.
      */
-    private fun generateFieldCode(column: Column, isPrimaryKey: Boolean): String {
-        val field = StringBuilder()
+    private fun generateJavaFields(table: Table): String {
+        val fields = StringBuilder()
 
-        // Field comment
-        if (column.comments.isNotEmpty()) {
-            field.append("    /**\n")
-            field.append("     * ${column.comments}\n")
-            field.append("     */\n")
-        }
+        table.columns.forEach { column ->
+            // Check if this column is a primary key
+            val isPrimaryKey = table.primaryKeyColumns.contains(column.name)
 
-        // Field annotations
-        if (isPrimaryKey) {
-            field.append("    @Id\n")
-            if (column.autoIncrement) {
-                field.append("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
+            // Add primary key annotation if it's an ID column
+            if (isPrimaryKey) {
+                fields.append("    @Id\n")
+                if (column.autoIncrement) {
+                    fields.append("    @GeneratedValue(strategy = GenerationType.IDENTITY)\n")
+                }
             }
+
+            // Add column annotation
+            fields.append("    @Column(name = \"${column.name}\"")
+            if (!column.nullable) {
+                fields.append(", nullable = false")
+            }
+            if (column.size > 0) {
+                fields.append(", length = ${column.size}")
+            }
+            fields.append(")\n")
+
+            // Add validation annotations
+            if (!column.nullable && column.sqlTypeName != "Boolean") {
+                fields.append("    @NotNull\n")
+            }
+
+            // Field declaration
+            val javaType = mapDbTypeToJavaType(column.sqlTypeName, column.nullable)
+            fields.append("    private $javaType ${toCamelCase(column.name)};\n\n")
         }
 
-        field.append("    @Column(name = \"${column.name}\"")
-        if (!column.nullable) field.append(", nullable = false")
-        if (column.size > 0 && column.javaType == "String") field.append(", length = ${column.size}")
-        field.append(")\n")
-
-        // Field declaration
-        field.append("    private ${column.javaType} ${column.fieldName};\n\n")
-
-        return field.toString()
+        return fields.toString()
     }
 
     /**
-     * Generate code for a relationship field.
-     *
-     * @param column Foreign key column
-     * @param foreignKey Foreign key constraint
-     * @return Field declaration
+     * Generate Java getters and setters.
      */
-    private fun generateRelationshipField(column: Column, foreignKey: ForeignKey): String {
-        val field = StringBuilder()
-        val relationType = foreignKey.determineRelationType()
-        val fieldName = foreignKey.getRelationshipFieldName()
+    private fun generateJavaGettersSetters(table: Table): String {
+        val methods = StringBuilder()
 
-        // Field comment
-        field.append("    /**\n")
-        field.append("     * Relationship to ${foreignKey.referenceTable}\n")
-        field.append("     */\n")
+        table.columns.forEach { column ->
+            val fieldName = toCamelCase(column.name)
+            val capitalizedFieldName = fieldName.replaceFirstChar { it.uppercase() }
+            val javaType = mapDbTypeToJavaType(column.sqlTypeName, column.nullable)
 
-        // Field annotations
-        if (relationType == "ManyToOne") {
-            field.append("    @ManyToOne\n")
-            field.append("    @JoinColumn(name = \"${column.name}\", referencedColumnName = \"${foreignKey.referenceColumn}\")\n")
-        } else if (relationType == "OneToOne") {
-            field.append("    @OneToOne\n")
-            field.append("    @JoinColumn(name = \"${column.name}\", referencedColumnName = \"${foreignKey.referenceColumn}\")\n")
+            // Getter
+            methods.append("    public $javaType get$capitalizedFieldName() {\n")
+            methods.append("        return $fieldName;\n")
+            methods.append("    }\n\n")
+
+            // Setter
+            methods.append("    public void set$capitalizedFieldName($javaType $fieldName) {\n")
+            methods.append("        this.$fieldName = $fieldName;\n")
+            methods.append("    }\n\n")
         }
 
-        // Field declaration
-        val targetEntityName = convertToEntityName(foreignKey.referenceTable)
-        field.append("    private $targetEntityName $fieldName;\n\n")
-
-        return field.toString()
+        return methods.toString()
     }
 
     /**
-     * Get entity file path.
-     *
-     * @param project IntelliJ project
-     * @param entityName Entity class name
-     * @param basePackage Base package for entity
-     * @return File path
+     * Map database types to Kotlin types.
      */
-    private fun getEntityFilePath(project: Project, entityName: String, basePackage: String): String {
-        val entityPackage = "$basePackage.entity"
-        val packagePath = entityPackage.replace(".", "/")
+    private fun mapDbTypeToKotlinType(dbType: String, nullable: Boolean): String {
+        val baseType = when (dbType.uppercase()) {
+            "VARCHAR", "CHAR", "TEXT", "LONGTEXT", "MEDIUMTEXT" -> "String"
+            "INT", "INTEGER" -> "Int"
+            "BIGINT" -> "Long"
+            "DECIMAL", "NUMERIC", "DOUBLE" -> "Double"
+            "FLOAT", "REAL" -> "Float"
+            "BOOLEAN", "BOOL", "BIT" -> "Boolean"
+            "DATE" -> "java.time.LocalDate"
+            "DATETIME", "TIMESTAMP" -> "java.time.LocalDateTime"
+            "TIME" -> "java.time.LocalTime"
+            "BLOB", "LONGBLOB" -> "ByteArray"
+            "UUID" -> "java.util.UUID"
+            else -> "String"
+        }
 
-        val projectPath = project.basePath ?: throw RuntimeException("Project path not found")
-        val sourcePath = "src/main/java"
-
-        return "$projectPath/$sourcePath/$packagePath/$entityName.java"
+        return if (nullable && baseType != "String") "$baseType?" else baseType
     }
 
     /**
-     * Get primary key type.
-     *
-     * @param table Database table
-     * @return Java type for primary key
+     * Map database types to Java types.
      */
-    private fun getPrimaryKeyType(table: Table): String {
-        val pkColumn = table.getPrimaryKeyColumn()
-        return pkColumn?.javaType ?: "Long" // Default to Long if no PK found
+    private fun mapDbTypeToJavaType(dbType: String, nullable: Boolean): String {
+        return when (dbType.uppercase()) {
+            "VARCHAR", "CHAR", "TEXT", "LONGTEXT", "MEDIUMTEXT" -> "String"
+            "INT", "INTEGER" -> if (nullable) "Integer" else "int"
+            "BIGINT" -> if (nullable) "Long" else "long"
+            "DECIMAL", "NUMERIC", "DOUBLE" -> if (nullable) "Double" else "double"
+            "FLOAT", "REAL" -> if (nullable) "Float" else "float"
+            "BOOLEAN", "BOOL", "BIT" -> if (nullable) "Boolean" else "boolean"
+            "DATE" -> "java.time.LocalDate"
+            "DATETIME", "TIMESTAMP" -> "java.time.LocalDateTime"
+            "TIME" -> "java.time.LocalTime"
+            "BLOB", "LONGBLOB" -> "byte[]"
+            "UUID" -> "java.util.UUID"
+            else -> "String"
+        }
     }
 
     /**
-     * Convert table name to entity name.
-     *
-     * @param tableName Table name
-     * @return Entity class name
+     * Convert snake_case to camelCase.
      */
-    private fun convertToEntityName(tableName: String): String {
-        val parts = tableName.split("_")
-        val baseName = parts.joinToString("") {
-            it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase() else char.toString() }
-        }
+    private fun toCamelCase(snakeCase: String): String {
+        return snakeCase.split("_").mapIndexed { index, part ->
+            if (index == 0) part.lowercase() else part.lowercase().replaceFirstChar { it.uppercase() }
+        }.joinToString("")
+    }
 
-        // Simple singularization
-        return if (baseName.endsWith("s") && !baseName.endsWith("ss")) {
-            baseName.substring(0, baseName.length - 1)
-        } else {
-            baseName
-        }
+    /**
+     * Check if the project is a Kotlin project.
+     */
+    private fun isKotlinProject(project: Project): Boolean {
+        // Simple check: look for Kotlin files in the project
+        val basePath = project.basePath ?: return false
+        val srcPath = Paths.get(basePath, "src", "main", "kotlin")
+        return Files.exists(srcPath)
     }
 
     /**

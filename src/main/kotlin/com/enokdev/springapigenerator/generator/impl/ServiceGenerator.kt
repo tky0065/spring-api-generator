@@ -4,15 +4,18 @@ import com.enokdev.springapigenerator.generator.AbstractTemplateCodeGenerator
 import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.model.RelationType
 import com.intellij.openapi.project.Project
-import java.io.File
 import java.nio.file.Paths
 
 /**
  * Generator for service interfaces and implementations.
  */
-class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
+class ServiceGenerator : AbstractTemplateCodeGenerator() {
 
     private val serviceImplGenerator = ServiceImplGenerator()
+
+    override fun getBaseTemplateName(): String {
+        return "Service.java.ft"
+    }
 
     override fun getTargetFilePath(
         project: Project,
@@ -27,26 +30,14 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
         return Paths.get(sourceRoot, serviceDir, fileName).toString()
     }
 
-    override fun generate(
-        project: Project,
-        entityMetadata: EntityMetadata,
-        packageConfig: Map<String, String>
-    ): String {
-        // Generate both interface and implementation
-        val serviceInterface = super.generate(project, entityMetadata, packageConfig)
+    override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        // Generate the service interface
+        val interfaceCode = super.generate(project, entityMetadata, packageConfig)
 
-        // Also generate the implementation class (ServiceImpl)
-        val serviceImpl = serviceImplGenerator.generate(project, entityMetadata, packageConfig)
+        // Also generate the service implementation
+        serviceImplGenerator.generate(project, entityMetadata, packageConfig)
 
-        // Write the ServiceImpl to file
-        val serviceImplPath = serviceImplGenerator.getTargetFilePath(project, entityMetadata, packageConfig)
-        File(serviceImplPath).also {
-            it.parentFile.mkdirs()
-            it.writeText(serviceImpl)
-        }
-
-        // Return the interface content (implementation will be saved separately)
-        return serviceInterface
+        return interfaceCode
     }
 
     override fun createDataModel(
@@ -55,12 +46,35 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["serviceName"] = entityMetadata.serviceName
+        model["serviceImplName"] = entityMetadata.serviceImplName
+        model["className"] = entityMetadata.className
+        model["entityName"] = entityMetadata.className
+        model["entityNameLower"] = entityMetadata.entityNameLower
+        model["dtoName"] = entityMetadata.dtoName
+        model["repositoryName"] = entityMetadata.repositoryName
+        model["mapperName"] = entityMetadata.mapperName
+        model["packageName"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
+
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+        model["serviceVarName"] = "${entityMetadata.entityNameLower}Service"
+        model["repositoryVarName"] = "${entityMetadata.entityNameLower}Repository"
+        model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
+
+        // ========== VARIABLES POUR LES API PATHS ==========
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
         // Add service-specific model data
         val additionalImports = generateAdditionalImports(entityMetadata)
         val additionalMethods = generateAdditionalMethods(entityMetadata)
+        val customMethods = generateCustomMethods(entityMetadata)
 
         model["additionalImports"] = additionalImports
+        model["imports"] = additionalImports
         model["additionalMethods"] = additionalMethods
+        model["customMethods"] = customMethods
 
         return model
     }
@@ -188,9 +202,92 @@ class ServiceGenerator : AbstractTemplateCodeGenerator("Service.java.ft") {
     }
 
     /**
+     * Generate custom service methods for specific business logic.
+     */
+    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
+        val methods = StringBuilder()
+
+        // Generate pagination methods
+        methods.append("""
+            /**
+             * Find all ${entityMetadata.entityNameLower}s with pagination.
+             *
+             * @param page the page number (0-based)
+             * @param size the page size
+             * @return a page of entity DTOs
+             */
+            Page<${entityMetadata.dtoName}> findAllPaginated(int page, int size);
+            
+        """.trimIndent())
+        methods.append("\n")
+
+        // Generate search methods if entity has string fields
+        val stringFields = entityMetadata.fields.filter {
+            it.simpleTypeName == "String" && it.name != "id" && !it.isCollection
+        }
+
+        if (stringFields.isNotEmpty()) {
+            methods.append("""
+                /**
+                 * Search ${entityMetadata.entityNameLower}s by keyword.
+                 *
+                 * @param keyword the search keyword
+                 * @return list of matching entity DTOs
+                 */
+                List<${entityMetadata.dtoName}> searchByKeyword(String keyword);
+                
+            """.trimIndent())
+            methods.append("\n")
+        }
+
+        // Generate count methods
+        methods.append("""
+            /**
+             * Count total number of ${entityMetadata.entityNameLower}s.
+             *
+             * @return the total count
+             */
+            long count();
+            
+        """.trimIndent())
+        methods.append("\n")
+
+        // Generate existence check methods
+        methods.append("""
+            /**
+             * Check if a ${entityMetadata.entityNameLower} exists by id.
+             *
+             * @param id the id to check
+             * @return true if exists, false otherwise
+             */
+            boolean existsById(${entityMetadata.idType.substringAfterLast(".")} id);
+            
+        """.trimIndent())
+        methods.append("\n")
+
+        // Generate bulk operations if applicable
+        methods.append("""
+            /**
+             * Delete multiple ${entityMetadata.entityNameLower}s by ids.
+             *
+             * @param ids the list of ids to delete
+             */
+            void deleteByIds(List<${entityMetadata.idType.substringAfterLast(".")}> ids);
+            
+        """.trimIndent())
+        methods.append("\n")
+
+        return methods.toString()
+    }
+
+    /**
      * Helper class to generate service implementation.
      */
-    private inner class ServiceImplGenerator : AbstractTemplateCodeGenerator("ServiceImpl.java.ft") {
+    private inner class ServiceImplGenerator : AbstractTemplateCodeGenerator() {
+
+        override fun getBaseTemplateName(): String {
+            return "ServiceImpl.java.ft"
+        }
 
         override fun getTargetFilePath(
             project: Project,

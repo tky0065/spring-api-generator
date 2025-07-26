@@ -10,11 +10,19 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.PsiField
+import com.intellij.psi.codeStyle.CodeStyleSettingsManager
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VfsUtil
+import java.io.File
+import java.util.Properties
 
 /**
- * Detects coding style conventions from existing project files.
+ * Detects coding style conventions from existing project files, IDE settings,
+ * and .editorconfig files. Supports matching to predefined code styles.
  */
 class CodeStyleDetector {
+    private val logger = Logger.getInstance(CodeStyleDetector::class.java)
 
     data class CodeStyleConfig(
         val indentationType: IndentationType = IndentationType.SPACES,
@@ -24,7 +32,8 @@ class CodeStyleDetector {
         val commentStyle: CommentStyle = CommentStyle.JAVADOC,
         val fieldPrefix: String = "",
         val useGetterSetterPrefix: Boolean = true,
-        val packageStructure: PackageStructure = PackageStructure.LAYERED
+        val packageStructure: PackageStructure = PackageStructure.LAYERED,
+        val styleStandard: PredefinedCodeStyles.StyleStandard = PredefinedCodeStyles.StyleStandard.CUSTOM
     )
 
     enum class IndentationType { SPACES, TABS }
@@ -35,11 +44,41 @@ class CodeStyleDetector {
 
     /**
      * Analyzes the project to detect coding style conventions.
+     * Checks multiple sources in the following order of priority:
+     * 1. Project-specific IDE settings
+     * 2. .editorconfig files
+     * 3. Analysis of existing code files
+     * 4. Default settings
      */
     fun detectCodeStyle(project: Project): CodeStyleConfig {
+        // Try to get style from IDE settings first
+        try {
+            val ideStyleConfig = detectIdeCodeStyle(project)
+            if (ideStyleConfig != null) {
+                logger.info("Using code style from IDE settings")
+                return ideStyleConfig
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to detect IDE code style: ${e.message}")
+        }
+
+        // Try to get style from .editorconfig
+        try {
+            val editorConfigStyle = detectEditorConfigStyle(project)
+            if (editorConfigStyle != null) {
+                logger.info("Using code style from .editorconfig")
+                return editorConfigStyle
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to detect .editorconfig style: ${e.message}")
+        }
+
+        // Fall back to analyzing project files
+        logger.info("Detecting code style from project files")
         val javaFiles = findJavaFiles(project)
 
         if (javaFiles.isEmpty()) {
+            logger.info("No Java files found, using default style")
             return CodeStyleConfig() // Return default if no Java files found
         }
 
@@ -52,7 +91,7 @@ class CodeStyleDetector {
         val useGetterSetterPrefix = detectGetterSetterPrefix(javaFiles)
         val packageStructure = detectPackageStructure(project)
 
-        return CodeStyleConfig(
+        val config = CodeStyleConfig(
             indentationType = indentationType,
             indentSize = indentSize,
             namingConvention = namingConvention,
@@ -62,6 +101,12 @@ class CodeStyleDetector {
             useGetterSetterPrefix = useGetterSetterPrefix,
             packageStructure = packageStructure
         )
+
+        // Try to match to a predefined style
+        val styleStandard = PredefinedCodeStyles.findClosestStyle(config)
+        logger.info("Detected style matches predefined style: $styleStandard")
+        
+        return config.copy(styleStandard = styleStandard)
     }
 
     private fun findJavaFiles(project: Project): List<PsiJavaFile> {
@@ -232,5 +277,103 @@ class CodeStyleDetector {
         }
 
         return if (featureBasedCount > layeredCount) PackageStructure.FEATURE_BASED else PackageStructure.LAYERED
+    }
+    
+    /**
+     * Detects code style from IntelliJ IDEA's code style settings.
+     * 
+     * @param project The project to detect code style for
+     * @return The detected code style configuration, or null if it couldn't be detected
+     */
+    private fun detectIdeCodeStyle(project: Project): CodeStyleConfig? {
+        try {
+            val codeStyleSettings = CodeStyleSettingsManager.getInstance(project).currentSettings
+            
+            // Detect indentation type and size
+            val indentOptions = codeStyleSettings.getIndentOptions(JavaFileType.INSTANCE)
+            val indentationType = if (indentOptions.USE_TAB_CHARACTER) IndentationType.TABS else IndentationType.SPACES
+            val indentSize = indentOptions.INDENT_SIZE
+            
+            // Detect bracket style
+            val javaSettings = codeStyleSettings.getCommonSettings(JavaFileType.INSTANCE.language)
+            val bracketStyle = if (javaSettings.BRACE_STYLE == 1) BracketStyle.NEXT_LINE else BracketStyle.END_OF_LINE
+            
+            // Detect naming convention (this is harder to detect from settings, using default)
+            val namingConvention = NamingConvention.CAMEL_CASE
+            
+            // Create the config
+            val config = CodeStyleConfig(
+                indentationType = indentationType,
+                indentSize = indentSize,
+                bracketStyle = bracketStyle,
+                namingConvention = namingConvention,
+                // Other properties use defaults
+                commentStyle = CommentStyle.JAVADOC,
+                fieldPrefix = "",
+                useGetterSetterPrefix = true,
+                packageStructure = PackageStructure.LAYERED
+            )
+            
+            // Try to match to a predefined style
+            val styleStandard = PredefinedCodeStyles.findClosestStyle(config)
+            
+            return config.copy(styleStandard = styleStandard)
+        } catch (e: Exception) {
+            logger.warn("Failed to detect IDE code style: ${e.message}")
+            return null
+        }
+    }
+    
+    /**
+     * Detects code style from .editorconfig file if present in the project.
+     * 
+     * @param project The project to detect code style for
+     * @return The detected code style configuration, or null if it couldn't be detected
+     */
+    private fun detectEditorConfigStyle(project: Project): CodeStyleConfig? {
+        try {
+            val projectDir = project.basePath ?: return null
+            val editorConfigFile = File(projectDir, ".editorconfig")
+            
+            if (!editorConfigFile.exists()) {
+                return null
+            }
+            
+            val properties = Properties()
+            editorConfigFile.inputStream().use { properties.load(it) }
+            
+            // Parse .editorconfig properties
+            val indentStyle = properties.getProperty("indent_style")
+            val indentSize = properties.getProperty("indent_size")?.toIntOrNull() ?: 4
+            val endOfLine = properties.getProperty("end_of_line")
+            
+            // Map to our code style config
+            val indentationType = when (indentStyle) {
+                "tab" -> IndentationType.TABS
+                "space" -> IndentationType.SPACES
+                else -> IndentationType.SPACES // Default
+            }
+            
+            // Create the config
+            val config = CodeStyleConfig(
+                indentationType = indentationType,
+                indentSize = indentSize,
+                // Other properties use defaults or are hard to determine from .editorconfig
+                namingConvention = NamingConvention.CAMEL_CASE,
+                bracketStyle = BracketStyle.END_OF_LINE,
+                commentStyle = CommentStyle.JAVADOC,
+                fieldPrefix = "",
+                useGetterSetterPrefix = true,
+                packageStructure = PackageStructure.LAYERED
+            )
+            
+            // Try to match to a predefined style
+            val styleStandard = PredefinedCodeStyles.findClosestStyle(config)
+            
+            return config.copy(styleStandard = styleStandard)
+        } catch (e: Exception) {
+            logger.warn("Failed to detect .editorconfig style: ${e.message}")
+            return null
+        }
     }
 }

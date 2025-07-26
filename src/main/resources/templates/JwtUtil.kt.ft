@@ -1,4 +1,4 @@
-package ${packageName}
+package ${packageName!"${basePackage}.config.security"}
 
 import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
@@ -9,20 +9,23 @@ import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
 import java.util.*
 import javax.crypto.SecretKey
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Utility class for JWT token operations.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Component
-class JwtUtil {
+class ${className!"JwtUtil"} {
 
     companion object {
-        // Externalise cette clé en production !
+        // Externalize this key in production!
         private val SECRET_KEY: SecretKey = Keys.secretKeyFor(SignatureAlgorithm.HS512)
 
-        // 5 heures
+        // 5 hours
         private const val JWT_TOKEN_VALIDITY = 5 * 60 * 60L
     }
 
@@ -41,7 +44,7 @@ class JwtUtil {
 
     private fun extractAllClaims(token: String): Claims {
         return try {
-            // Depuis JJWT 0.12.x, il faut utiliser verifyWith() et parseSignedClaims()
+            // Since JJWT 0.12.x, need to use verifyWith() and parseSignedClaims()
             Jwts.parser()
                 .verifyWith(SECRET_KEY)
                 .build()
@@ -58,7 +61,7 @@ class JwtUtil {
 
     fun generateToken(userDetails: UserDetails): String {
         val claims = HashMap<String, Any>()
-        // Ajoute les rôles dans les claims
+        // Add roles to claims
         val roles = userDetails.authorities.map { it.authority }
         claims["roles"] = roles
 
@@ -82,4 +85,20 @@ class JwtUtil {
         val username = extractUsername(token)
         return (username == userDetails.username && !isTokenExpired(token))
     }
+
+    fun validateToken(token: String): Boolean {
+        return try {
+            !isTokenExpired(token)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun getUsernameFromToken(token: String): String {
+        return extractUsername(token)
+    }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

@@ -12,12 +12,13 @@ import java.nio.file.Paths
  * Repository generator that adapts to custom ID types.
  * Supports both Java and Kotlin code generation.
  */
-class CustomIdRepositoryGenerator(
-    javaTemplateName: String = "CustomIdRepository.java.ft",
-    private val kotlinTemplateName: String = "CustomIdRepository.kt.ft"
-) : IncrementalCodeGenerator(javaTemplateName) {
+class CustomIdRepositoryGenerator : IncrementalCodeGenerator() {
 
     private val idAnalyzer = CustomIdTypeAnalyzer()
+
+    override fun getBaseTemplateName(): String {
+        return "CustomIdRepository.java.ft"
+    }
 
     /**
      * Generate repository code with language detection
@@ -29,19 +30,11 @@ class CustomIdRepositoryGenerator(
         project: Project,
         outputDir: File
     ): File {
-        val isKotlinProject = detectKotlinProject(project)
-
-        // Create a temporary generator with the appropriate template
-        val generator = if (isKotlinProject) {
-            CustomIdRepositoryGenerator(kotlinTemplateName, kotlinTemplateName)
-        } else {
-            this
-        }
-
-        val generatedCode = generator.generate(project, entityMetadata, packageConfig)
+        val generatedCode = generate(project, entityMetadata, packageConfig)
 
         // Write to output file
-        val fileName = "${entityMetadata.repositoryName}.${if (isKotlinProject) "kt" else "java"}"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.repositoryName}.$extension"
         val outputFile = File(outputDir, fileName)
         outputFile.writeText(generatedCode)
 

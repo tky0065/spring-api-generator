@@ -8,7 +8,11 @@ import java.nio.file.Paths
 /**
  * Generator for REST controllers.
  */
-class ControllerGenerator : AbstractTemplateCodeGenerator("Controller.java.ft") {
+class ControllerGenerator : AbstractTemplateCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "Controller.java.ft"
+    }
 
     override fun getTargetFilePath(
         project: Project,
@@ -29,14 +33,42 @@ class ControllerGenerator : AbstractTemplateCodeGenerator("Controller.java.ft") 
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
-        // Add controller-specific model data
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["controllerName"] = entityMetadata.controllerName
+        model["className"] = entityMetadata.className
+        model["entityName"] = entityMetadata.className
+        model["entityNameLower"] = entityMetadata.entityNameLower
+        model["serviceName"] = entityMetadata.serviceName
+        model["dtoName"] = entityMetadata.dtoName
+        model["repositoryName"] = entityMetadata.repositoryName
+        model["mapperName"] = entityMetadata.mapperName
+        model["packageName"] = packageConfig["controllerPackage"] ?: entityMetadata.controllerPackage
+
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+        model["serviceVarName"] = "${entityMetadata.entityNameLower}Service"
+        model["repositoryVarName"] = "${entityMetadata.entityNameLower}Repository"
+        model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
+
+        // ========== VARIABLES POUR LES API PATHS ==========
         val baseApiPath = formatApiPath(entityMetadata.entityNameLower)
+        model["baseApiPath"] = baseApiPath
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // ========== VARIABLES POUR SWAGGER/API DOCUMENTATION ==========
+        model["apiTitle"] = "${entityMetadata.className} API"
+        model["apiDescription"] = "API for managing ${entityMetadata.className} entities"
+        model["apiVersion"] = "1.0.0"
+
+        // ========== IMPORTS ET ENDPOINTS ADDITIONNELS ==========
         val additionalImports = generateAdditionalImports(entityMetadata)
         val additionalEndpoints = generateAdditionalEndpoints(entityMetadata)
+        val customMethods = generateCustomMethods(entityMetadata)
 
-        model["baseApiPath"] = baseApiPath
         model["additionalImports"] = additionalImports
+        model["imports"] = additionalImports
         model["additionalEndpoints"] = additionalEndpoints
+        model["customMethods"] = customMethods
 
         return model
     }
@@ -63,93 +95,41 @@ class ControllerGenerator : AbstractTemplateCodeGenerator("Controller.java.ft") 
         imports.add("${entityMetadata.dtoPackage}.${entityMetadata.dtoName}")
         imports.add("${entityMetadata.servicePackage}.${entityMetadata.serviceName}")
 
-        // Add common Spring imports
-        imports.add("org.springframework.beans.factory.annotation.Autowired")
-        imports.add("org.springframework.http.HttpStatus")
-        imports.add("org.springframework.http.ResponseEntity")
-        imports.add("org.springframework.web.bind.annotation.*")
-        imports.add("org.springframework.data.domain.Page")
-        imports.add("org.springframework.data.domain.Pageable")
-
-        // Add validation imports
-        imports.add("jakarta.validation.Valid")
-
-        // Add java util imports
-        imports.add("java.util.List")
-        imports.add("java.util.Optional")
-
-        // Add swagger annotations if requested
-        imports.add("io.swagger.v3.oas.annotations.Operation")
-        imports.add("io.swagger.v3.oas.annotations.Parameter")
-        imports.add("io.swagger.v3.oas.annotations.responses.ApiResponse")
-        imports.add("io.swagger.v3.oas.annotations.responses.ApiResponses")
-        imports.add("io.swagger.v3.oas.annotations.tags.Tag")
-
-        return imports.joinToString("\n") { "import $it;" }
+        return imports.joinToString("\n") { "import $it" }
     }
 
     /**
-     * Generate additional endpoint methods for the controller.
+     * Generate additional endpoints for the controller.
      */
     private fun generateAdditionalEndpoints(entityMetadata: EntityMetadata): String {
-        val endpoints = StringBuilder()
+        // Generate additional endpoints based on entity fields
+        val endpoints = mutableListOf<String>()
 
-        // Generate search endpoints for common fields (e.g., name, email)
-        entityMetadata.fields.forEach { field ->
-            if (field.name != "id" && !field.isCollection) {
-                if (field.simpleTypeName == "String" &&
-                    (field.name.equals("name", ignoreCase = true) ||
-                    field.name.equals("email", ignoreCase = true) ||
-                    field.name.equals("username", ignoreCase = true))
-                ) {
-                    val methodName = "findBy${field.name.replaceFirstChar { it.uppercase() }}"
-                    val paramName = field.name
-                    val entityNameLower = entityMetadata.entityNameLower
-
-                    endpoints.append("""
-                        /**
-                         * GET /api/${entityNameLower}s/${paramName}/{${paramName}} : Get ${entityNameLower}s by ${paramName}.
-                         *
-                         * @param ${paramName} the ${paramName} to search for
-                         * @return the ResponseEntity with status 200 (OK) and the ${entityNameLower} in the body
-                         */
-                        @GetMapping("/${paramName}/{${paramName}}")
-                        @Operation(summary = "Find ${entityNameLower} by ${paramName}")
-                        @ApiResponses(value = {
-                            @ApiResponse(responseCode = "200", description = "Found the ${entityNameLower}"),
-                            @ApiResponse(responseCode = "404", description = "${entityNameLower} not found")
-                        })
-                        public ResponseEntity<${entityMetadata.dtoName}> get${entityMetadata.className}By${field.name.replaceFirstChar { it.uppercase() }}(
-                                @PathVariable ${field.simpleTypeName} ${paramName}) {
-                            return ${entityNameLower}Service.${methodName}(${paramName})
-                                .map(ResponseEntity::ok)
-                                .orElse(ResponseEntity.notFound().build());
-                        }
-                        
-                    """.trimIndent())
-                    endpoints.append("\n")
-                }
-            }
+        // Add search endpoints if there are string fields
+        val stringFields = entityMetadata.fields.filter { it.type == "String" }
+        if (stringFields.isNotEmpty()) {
+            val firstStringField = stringFields.first()
+            endpoints.add("""
+    /**
+     * Search ${entityMetadata.className} by ${firstStringField.name}.
+     */
+    @GetMapping("/search")
+    fun search${entityMetadata.className}sByName(@RequestParam ${firstStringField.name}: String, pageable: Pageable): ResponseEntity<Page<${entityMetadata.dtoName}>> {
+        log.debug("REST request to search ${entityMetadata.className} by ${firstStringField.name}: {}", ${firstStringField.name})
+        val page = ${entityMetadata.entityNameLower}Service.findBy${firstStringField.name.replaceFirstChar { it.uppercase() }}(${firstStringField.name}, pageable)
+        return ResponseEntity.ok().body(page)
+    }
+            """.trimIndent())
         }
 
-        // Add a paginated endpoint
-        val entityNameLower = entityMetadata.entityNameLower
-        endpoints.append("""
-            /**
-             * GET /api/${entityNameLower}s/paginated : Get paginated list of ${entityNameLower}s.
-             *
-             * @param pageable the pagination information
-             * @return the ResponseEntity with status 200 (OK) and the list of ${entityNameLower}s in body
-             */
-            @GetMapping("/paginated")
-            @Operation(summary = "Get a paginated list of ${entityNameLower}s")
-            public ResponseEntity<Page<${entityMetadata.dtoName}>> getAllPaginated(
-                    @Parameter(description = "Pageable parameters") Pageable pageable) {
-                Page<${entityMetadata.dtoName}> page = ${entityNameLower}Service.findAllPaginated(pageable);
-                return ResponseEntity.ok(page);
-            }
-        """.trimIndent())
+        return endpoints.joinToString("\n\n")
+    }
 
-        return endpoints.toString()
+    /**
+     * Generate custom methods for the controller.
+     */
+    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
+        // Return empty string for now, can be expanded later
+        return ""
     }
 }

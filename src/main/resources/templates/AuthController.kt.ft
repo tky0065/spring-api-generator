@@ -1,4 +1,4 @@
-package ${packageName}
+package ${packageName!"${basePackage}.controller"}
 
 import ${packageName?keep_before_last(".")}.config.security.JwtUtil
 import ${packageName?keep_before_last(".")}.entity.User
@@ -17,17 +17,20 @@ import org.springframework.web.bind.annotation.*
 import jakarta.validation.Valid
 import java.security.Principal
 import java.util.HashMap
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Controller for handling authentication requests.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @RestController
 @RequestMapping("/api/auth")
-class AuthController(
+class ${className!"AuthController"}(
     private val authenticationManager: AuthenticationManager,
-    private val userService: UserService,
+    private val ${serviceVarName!"userService"}: ${serviceName!"UserService"},
     private val jwtUtil: JwtUtil
 ) {
 
@@ -48,7 +51,7 @@ class AuthController(
             val userDetails = authentication.principal as UserDetails
             val jwt = jwtUtil.generateToken(userDetails)
 
-            val user = userService.findByUsername(userDetails.username)
+            val user = ${serviceVarName!"userService"}.findByUsername(userDetails.username)
                 ?: throw IllegalStateException("User not found after authentication")
 
             val response = HashMap<String, Any>()
@@ -70,7 +73,7 @@ class AuthController(
     @PostMapping("/register")
     fun register(@Valid @RequestBody registerRequest: RegisterRequest): ResponseEntity<*> {
         return try {
-            val user = User().apply {
+            val user = ${entityName!"User"}().apply {
                 username = registerRequest.username
                 password = registerRequest.password
                 email = registerRequest.email
@@ -78,7 +81,7 @@ class AuthController(
                 addRole("ROLE_USER")
             }
 
-            val createdUser = userService.createUser(user)
+            val createdUser = ${serviceVarName!"userService"}.createUser(user)
             ResponseEntity.status(HttpStatus.CREATED).body(mapUserToDto(createdUser))
         } catch (e: IllegalArgumentException) {
             ResponseEntity.badRequest().body(e.message)
@@ -93,7 +96,7 @@ class AuthController(
      */
     @GetMapping("/me")
     fun getCurrentUser(principal: Principal): ResponseEntity<*> {
-        val user = userService.findByUsername(principal.name)
+        val user = ${serviceVarName!"userService"}.findByUsername(principal.name)
             ?: return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found")
 
         return ResponseEntity.ok(mapUserToDto(user))
@@ -105,7 +108,7 @@ class AuthController(
      * @param user the user entity
      * @return map with user details
      */
-    private fun mapUserToDto(user: User): Map<String, Any?> {
+    private fun mapUserToDto(user: ${entityName!"User"}): Map<String, Any?> {
         val userDto = HashMap<String, Any?>()
         userDto["id"] = user.id
         userDto["username"] = user.username
@@ -132,4 +135,8 @@ class AuthController(
         val email: String,
         val fullName: String
     )
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

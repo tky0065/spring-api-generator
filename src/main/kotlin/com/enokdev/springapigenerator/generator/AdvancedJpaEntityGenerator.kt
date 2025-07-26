@@ -11,15 +11,16 @@ import java.nio.file.Paths
  * Enhanced entity generator with advanced JPA features support.
  * Supports both Java and Kotlin code generation.
  */
-class AdvancedJpaEntityGenerator(
-    javaTemplateName: String = "AdvancedJpaEntity.java.ft",
-    private val kotlinTemplateName: String = "AdvancedJpaEntity.kt.ft"
-) : IncrementalCodeGenerator(javaTemplateName) {
+class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
 
     private val jpaAnalyzer = AdvancedJpaFeatureAnalyzer()
 
+    override fun getBaseTemplateName(): String {
+        return "AdvancedJpaEntity.java.ft"
+    }
+
     /**
-     * Generate entity code with language detection
+     * Generate entity code with language detection and composite key support
      */
     fun generateEntity(
         entityMetadata: EntityMetadata,
@@ -28,23 +29,465 @@ class AdvancedJpaEntityGenerator(
         project: Project,
         outputDir: File
     ): File {
-        val isKotlinProject = detectKotlinProject(project)
-
-        // Create a temporary generator with the appropriate template
-        val generator = if (isKotlinProject) {
-            AdvancedJpaEntityGenerator(kotlinTemplateName, kotlinTemplateName)
-        } else {
-            this
-        }
-
-        val generatedCode = generator.generate(project, entityMetadata, packageConfig)
+        val generatedCode = generate(project, entityMetadata, packageConfig)
 
         // Write to output file
-        val fileName = "${entityMetadata.className}.${if (isKotlinProject) "kt" else "java"}"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.className}.$extension"
         val outputFile = File(outputDir, fileName)
         outputFile.writeText(generatedCode)
 
+        // Generate composite key if needed
+        if (needsCompositeKey(entityMetadata)) {
+            generateCompositeKeyClass(entityMetadata, packageConfig, styleAdapter, project, outputDir)
+        }
+
+        // Generate custom validator classes for cross-field validations
+        generateCustomValidators(entityMetadata, packageConfig, isKotlinProject(project), outputDir)
+
         return outputFile
+    }
+
+    /**
+     * Determine if the entity needs a composite key.
+     */
+    private fun needsCompositeKey(entityMetadata: EntityMetadata): Boolean {
+        // Check if entity has multiple ID fields or composite key indicators
+        val idFields = entityMetadata.fields.filter {
+            it.name.contains("id", ignoreCase = true) ||
+            it.name == "key" ||
+            it.columnName?.contains("_id") == true
+        }
+
+        // If more than one ID-like field, might need composite key
+        if (idFields.size > 1) return true
+
+        // Check for specific naming patterns that suggest composite keys
+        val hasCompositePattern = entityMetadata.className.contains("Mapping") ||
+                                  entityMetadata.className.contains("Association") ||
+                                  entityMetadata.tableName?.contains("_") == true
+
+        return hasCompositePattern
+    }
+
+    /**
+     * Generate composite key class using CompositeKeyGenerator.
+     */
+    private fun generateCompositeKeyClass(
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>,
+        styleAdapter: CodeStyleAdapter,
+        project: Project,
+        outputDir: File
+    ) {
+        val compositeKeyGenerator = CompositeKeyGenerator()
+
+        try {
+            val compositeKeyFile = compositeKeyGenerator.generateCompositeKey(
+                entityMetadata,
+                packageConfig,
+                styleAdapter,
+                project,
+                outputDir
+            )
+
+            println("Generated composite key: ${compositeKeyFile.absolutePath}")
+        } catch (e: Exception) {
+            println("Warning: Failed to generate composite key for ${entityMetadata.className}: ${e.message}")
+        }
+    }
+
+    /**
+     * Generate custom validator classes for cross-field validations
+     */
+    private fun generateCustomValidators(
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>,
+        isKotlinProject: Boolean,
+        outputDir: File
+    ) {
+        val validationAnalyzer = EntityValidationAnalyzer()
+        val crossFieldValidations = validationAnalyzer.generateCrossFieldValidations(entityMetadata)
+
+        if (crossFieldValidations.isEmpty()) {
+            return
+        }
+
+        // Create validator directory
+        val basePackage = packageConfig["basePackage"] ?: entityMetadata.packageName
+        val validatorPackage = "$basePackage.validator"
+        val validatorDir = File(outputDir, "validator")
+        validatorDir.mkdirs()
+
+        // Generate validator classes
+        for (validation in crossFieldValidations) {
+            // Generate annotation interface
+            val annotationCode = validationAnalyzer.generateCustomValidator(validation, basePackage)
+            val annotationFileName = "${validation.type}.${if (isKotlinProject) "kt" else "java"}"
+            val annotationFile = File(validatorDir, annotationFileName)
+            annotationFile.writeText(annotationCode)
+
+            // Generate validator implementation
+            val validatorCode = generateValidatorImplementation(validation, validatorPackage, isKotlinProject)
+            val validatorFileName = "${validation.type}Validator.${if (isKotlinProject) "kt" else "java"}"
+            val validatorFile = File(validatorDir, validatorFileName)
+            validatorFile.writeText(validatorCode)
+        }
+    }
+
+    /**
+     * Generate validator implementation for a cross-field validation
+     */
+    private fun generateValidatorImplementation(
+        validation: CrossFieldValidation,
+        validatorPackage: String,
+        isKotlinProject: Boolean
+    ): String {
+        return when (validation.type) {
+            "DateRange" -> generateDateRangeValidator(validation, validatorPackage, isKotlinProject)
+            "ValueRange" -> generateValueRangeValidator(validation, validatorPackage, isKotlinProject)
+            "FieldMatch" -> generateFieldMatchValidator(validation, validatorPackage, isKotlinProject)
+            else -> ""
+        }
+    }
+
+    /**
+     * Generate date range validator implementation
+     */
+    private fun generateDateRangeValidator(
+        validation: CrossFieldValidation,
+        validatorPackage: String,
+        isKotlinProject: Boolean
+    ): String {
+        return if (isKotlinProject) {
+            """
+            package $validatorPackage
+            
+            import javax.validation.ConstraintValidator
+            import javax.validation.ConstraintValidatorContext
+            import java.time.temporal.Temporal
+            import java.util.Date
+            import kotlin.reflect.KProperty1
+            import kotlin.reflect.full.memberProperties
+            
+            /**
+             * Validator implementation for the DateRange constraint.
+             */
+            class DateRangeValidator : ConstraintValidator<DateRange, Any> {
+                private lateinit var startDateFieldName: String
+                private lateinit var endDateFieldName: String
+                
+                override fun initialize(constraintAnnotation: DateRange) {
+                    startDateFieldName = constraintAnnotation.startDate
+                    endDateFieldName = constraintAnnotation.endDate
+                }
+                
+                override fun isValid(value: Any?, context: ConstraintValidatorContext): Boolean {
+                    if (value == null) {
+                        return true
+                    }
+                    
+                    try {
+                        val startDateValue = getFieldValue(value, startDateFieldName)
+                        val endDateValue = getFieldValue(value, endDateFieldName)
+                        
+                        if (startDateValue == null || endDateValue == null) {
+                            return true
+                        }
+                        
+                        return when {
+                            startDateValue is Date && endDateValue is Date -> 
+                                !startDateValue.after(endDateValue)
+                            startDateValue is Temporal && endDateValue is Temporal -> 
+                                !startDateValue.isAfter(endDateValue)
+                            else -> true
+                        }
+                    } catch (e: Exception) {
+                        return false
+                    }
+                }
+                
+                private fun getFieldValue(obj: Any, fieldName: String): Any? {
+                    val property = obj::class.memberProperties.find { it.name == fieldName } as? KProperty1<Any, *>
+                    return property?.get(obj)
+                }
+            }
+            """.trimIndent()
+        } else {
+            """
+            package $validatorPackage;
+            
+            import javax.validation.ConstraintValidator;
+            import javax.validation.ConstraintValidatorContext;
+            import java.lang.reflect.Field;
+            import java.time.temporal.Temporal;
+            import java.util.Date;
+            
+            /**
+             * Validator implementation for the DateRange constraint.
+             */
+            public class DateRangeValidator implements ConstraintValidator<DateRange, Object> {
+                private String startDateFieldName;
+                private String endDateFieldName;
+                
+                @Override
+                public void initialize(DateRange constraintAnnotation) {
+                    startDateFieldName = constraintAnnotation.startDate();
+                    endDateFieldName = constraintAnnotation.endDate();
+                }
+                
+                @Override
+                public boolean isValid(Object value, ConstraintValidatorContext context) {
+                    if (value == null) {
+                        return true;
+                    }
+                    
+                    try {
+                        Object startDateValue = getFieldValue(value, startDateFieldName);
+                        Object endDateValue = getFieldValue(value, endDateFieldName);
+                        
+                        if (startDateValue == null || endDateValue == null) {
+                            return true;
+                        }
+                        
+                        if (startDateValue instanceof Date && endDateValue instanceof Date) {
+                            return !((Date) startDateValue).after((Date) endDateValue);
+                        } else if (startDateValue instanceof Temporal && endDateValue instanceof Temporal) {
+                            return !((Temporal) startDateValue).isAfter((Temporal) endDateValue);
+                        }
+                        
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+                
+                private Object getFieldValue(Object obj, String fieldName) throws Exception {
+                    Field field = obj.getClass().getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    return field.get(obj);
+                }
+            }
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * Generate value range validator implementation
+     */
+    private fun generateValueRangeValidator(
+        validation: CrossFieldValidation,
+        validatorPackage: String,
+        isKotlinProject: Boolean
+    ): String {
+        return if (isKotlinProject) {
+            """
+            package $validatorPackage
+            
+            import javax.validation.ConstraintValidator
+            import javax.validation.ConstraintValidatorContext
+            import kotlin.reflect.KProperty1
+            import kotlin.reflect.full.memberProperties
+            
+            /**
+             * Validator implementation for the ValueRange constraint.
+             */
+            class ValueRangeValidator : ConstraintValidator<ValueRange, Any> {
+                private lateinit var minValueFieldName: String
+                private lateinit var maxValueFieldName: String
+                
+                override fun initialize(constraintAnnotation: ValueRange) {
+                    minValueFieldName = constraintAnnotation.minValue
+                    maxValueFieldName = constraintAnnotation.maxValue
+                }
+                
+                override fun isValid(value: Any?, context: ConstraintValidatorContext): Boolean {
+                    if (value == null) {
+                        return true
+                    }
+                    
+                    try {
+                        val minValue = getFieldValue(value, minValueFieldName)
+                        val maxValue = getFieldValue(value, maxValueFieldName)
+                        
+                        if (minValue == null || maxValue == null) {
+                            return true
+                        }
+                        
+                        return when {
+                            minValue is Number && maxValue is Number -> 
+                                minValue.toDouble() <= maxValue.toDouble()
+                            minValue is Comparable<*> && maxValue is Comparable<*> -> 
+                                @Suppress("UNCHECKED_CAST")
+                                (minValue as Comparable<Any>) <= (maxValue as Comparable<Any>)
+                            else -> true
+                        }
+                    } catch (e: Exception) {
+                        return false
+                    }
+                }
+                
+                private fun getFieldValue(obj: Any, fieldName: String): Any? {
+                    val property = obj::class.memberProperties.find { it.name == fieldName } as? KProperty1<Any, *>
+                    return property?.get(obj)
+                }
+            }
+            """.trimIndent()
+        } else {
+            """
+            package $validatorPackage;
+            
+            import javax.validation.ConstraintValidator;
+            import javax.validation.ConstraintValidatorContext;
+            import java.lang.reflect.Field;
+            
+            /**
+             * Validator implementation for the ValueRange constraint.
+             */
+            public class ValueRangeValidator implements ConstraintValidator<ValueRange, Object> {
+                private String minValueFieldName;
+                private String maxValueFieldName;
+                
+                @Override
+                public void initialize(ValueRange constraintAnnotation) {
+                    minValueFieldName = constraintAnnotation.minValue();
+                    maxValueFieldName = constraintAnnotation.maxValue();
+                }
+                
+                @Override
+                public boolean isValid(Object value, ConstraintValidatorContext context) {
+                    if (value == null) {
+                        return true;
+                    }
+                    
+                    try {
+                        Object minValue = getFieldValue(value, minValueFieldName);
+                        Object maxValue = getFieldValue(value, maxValueFieldName);
+                        
+                        if (minValue == null || maxValue == null) {
+                            return true;
+                        }
+                        
+                        if (minValue instanceof Number && maxValue instanceof Number) {
+                            return ((Number) minValue).doubleValue() <= ((Number) maxValue).doubleValue();
+                        } else if (minValue instanceof Comparable && maxValue instanceof Comparable) {
+                            @SuppressWarnings("unchecked")
+                            Comparable<Object> comparableMin = (Comparable<Object>) minValue;
+                            return comparableMin.compareTo(maxValue) <= 0;
+                        }
+                        
+                        return true;
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+                
+                private Object getFieldValue(Object obj, String fieldName) throws Exception {
+                    Field field = obj.getClass().getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    return field.get(obj);
+                }
+            }
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * Generate field match validator implementation
+     */
+    private fun generateFieldMatchValidator(
+        validation: CrossFieldValidation,
+        validatorPackage: String,
+        isKotlinProject: Boolean
+    ): String {
+        return if (isKotlinProject) {
+            """
+            package $validatorPackage
+            
+            import javax.validation.ConstraintValidator
+            import javax.validation.ConstraintValidatorContext
+            import kotlin.reflect.KProperty1
+            import kotlin.reflect.full.memberProperties
+            
+            /**
+             * Validator implementation for the FieldMatch constraint.
+             */
+            class FieldMatchValidator : ConstraintValidator<FieldMatch, Any> {
+                private lateinit var fieldName: String
+                private lateinit var fieldMatchName: String
+                
+                override fun initialize(constraintAnnotation: FieldMatch) {
+                    fieldName = constraintAnnotation.field
+                    fieldMatchName = constraintAnnotation.fieldMatch
+                }
+                
+                override fun isValid(value: Any?, context: ConstraintValidatorContext): Boolean {
+                    if (value == null) {
+                        return true
+                    }
+                    
+                    try {
+                        val fieldValue = getFieldValue(value, fieldName)
+                        val fieldMatchValue = getFieldValue(value, fieldMatchName)
+                        
+                        return fieldValue == fieldMatchValue
+                    } catch (e: Exception) {
+                        return false
+                    }
+                }
+                
+                private fun getFieldValue(obj: Any, fieldName: String): Any? {
+                    val property = obj::class.memberProperties.find { it.name == fieldName } as? KProperty1<Any, *>
+                    return property?.get(obj)
+                }
+            }
+            """.trimIndent()
+        } else {
+            """
+            package $validatorPackage;
+            
+            import javax.validation.ConstraintValidator;
+            import javax.validation.ConstraintValidatorContext;
+            import java.lang.reflect.Field;
+            import java.util.Objects;
+            
+            /**
+             * Validator implementation for the FieldMatch constraint.
+             */
+            public class FieldMatchValidator implements ConstraintValidator<FieldMatch, Object> {
+                private String fieldName;
+                private String fieldMatchName;
+                
+                @Override
+                public void initialize(FieldMatch constraintAnnotation) {
+                    fieldName = constraintAnnotation.field();
+                    fieldMatchName = constraintAnnotation.fieldMatch();
+                }
+                
+                @Override
+                public boolean isValid(Object value, ConstraintValidatorContext context) {
+                    if (value == null) {
+                        return true;
+                    }
+                    
+                    try {
+                        Object fieldValue = getFieldValue(value, fieldName);
+                        Object fieldMatchValue = getFieldValue(value, fieldMatchName);
+                        
+                        return Objects.equals(fieldValue, fieldMatchValue);
+                    } catch (Exception e) {
+                        return false;
+                    }
+                }
+                
+                private Object getFieldValue(Object obj, String fieldName) throws Exception {
+                    Field field = obj.getClass().getDeclaredField(fieldName);
+                    field.setAccessible(true);
+                    return field.get(obj);
+                }
+            }
+            """.trimIndent()
+        }
     }
 
     /**
@@ -77,6 +520,11 @@ class AdvancedJpaEntityGenerator(
         val versioningCode = generateVersioningCode(jpaFeatures, styleAdapter)
         val softDeleteCode = generateSoftDeleteCode(jpaFeatures, styleAdapter)
 
+        // Analyze validation requirements
+        val validationAnalyzer = EntityValidationAnalyzer()
+        val fieldValidations = validationAnalyzer.analyzeEntity(entityMetadata)
+        val crossFieldValidations = validationAnalyzer.generateCrossFieldValidations(entityMetadata)
+
         // Add JPA features to model
         model["jpaFeatures"] = createJpaFeaturesModel(jpaFeatures)
         model["inheritanceCode"] = inheritanceCode
@@ -88,7 +536,64 @@ class AdvancedJpaEntityGenerator(
         model["jpaImports"] = collectJpaImports(jpaFeatures)
         model["entityListenerClass"] = generateEntityListenerClass(jpaFeatures, entityMetadata, styleAdapter)
 
+        // Add validation features to model
+        model["fieldValidations"] = fieldValidations
+        model["crossFieldValidations"] = crossFieldValidations
+        model["hasValidation"] = fieldValidations.isNotEmpty() || crossFieldValidations.isNotEmpty()
+        model["validationImports"] = collectValidationImports(fieldValidations, crossFieldValidations)
+
         return model
+    }
+    
+    /**
+     * Collects imports needed for validation annotations.
+     */
+    private fun collectValidationImports(
+        fieldValidations: Map<String, List<ValidationAnnotation>>,
+        crossFieldValidations: List<CrossFieldValidation>
+    ): Set<String> {
+        val imports = mutableSetOf<String>()
+        
+        // Basic validation imports
+        imports.add("javax.validation.constraints.*")
+        
+        // Add imports for specific validation types
+        val allAnnotations = fieldValidations.values.flatten().map { it.type }
+        
+        if (allAnnotations.any { it.contains("Email") }) {
+            imports.add("javax.validation.constraints.Email")
+        }
+        
+        if (allAnnotations.any { it.contains("Pattern") }) {
+            imports.add("javax.validation.constraints.Pattern")
+        }
+        
+        if (allAnnotations.any { it.contains("Future") || it.contains("Past") }) {
+            imports.add("javax.validation.constraints.Future")
+            imports.add("javax.validation.constraints.Past")
+        }
+        
+        if (allAnnotations.any { it.contains("Min") || it.contains("Max") }) {
+            imports.add("javax.validation.constraints.Min")
+            imports.add("javax.validation.constraints.Max")
+        }
+        
+        if (allAnnotations.any { it.contains("DecimalMin") || it.contains("DecimalMax") }) {
+            imports.add("javax.validation.constraints.DecimalMin")
+            imports.add("javax.validation.constraints.DecimalMax")
+        }
+        
+        if (allAnnotations.any { it.contains("Positive") || it.contains("Negative") }) {
+            imports.add("javax.validation.constraints.Positive")
+            imports.add("javax.validation.constraints.Negative")
+        }
+        
+        // Add imports for cross-field validations
+        if (crossFieldValidations.isNotEmpty()) {
+            imports.add("javax.validation.Valid")
+        }
+        
+        return imports
     }
 
     private fun analyzeJpaFeatures(entityMetadata: EntityMetadata): JpaFeatureConfiguration {
@@ -135,6 +640,62 @@ class AdvancedJpaEntityGenerator(
                 isMappedSuperclass = entityMetadata.className.contains("Base")
             )
         } else null
+        
+        // Create mock attribute converters based on field types
+        val customConverters = mutableListOf<AttributeConverter>()
+        
+        // Look for fields that might use converters
+        entityMetadata.fields.forEach { field ->
+            when {
+                // Enum types often use converters
+                field.type.contains("Enum") || field.name.endsWith("Type") || field.name.endsWith("Status") -> {
+                    customConverters.add(
+                        AttributeConverter(
+                            fieldName = field.name,
+                            converterClass = "${field.type}Converter",
+                            databaseType = "String",
+                            entityType = field.type
+                        )
+                    )
+                }
+                
+                // JSON data often uses converters
+                field.type.contains("Map") || field.type.contains("List") || field.name.contains("json") || field.name.contains("data") -> {
+                    customConverters.add(
+                        AttributeConverter(
+                            fieldName = field.name,
+                            converterClass = "JsonConverter",
+                            databaseType = "String",
+                            entityType = field.type
+                        )
+                    )
+                }
+                
+                // Boolean fields might use Y/N converters
+                field.type == "Boolean" && (field.name.contains("flag") || field.name.contains("indicator")) -> {
+                    customConverters.add(
+                        AttributeConverter(
+                            fieldName = field.name,
+                            converterClass = "BooleanToYNConverter",
+                            databaseType = "String",
+                            entityType = "Boolean"
+                        )
+                    )
+                }
+                
+                // Date fields might use custom formats
+                field.type.contains("Date") || field.type.contains("Time") -> {
+                    customConverters.add(
+                        AttributeConverter(
+                            fieldName = field.name,
+                            converterClass = "CustomDateConverter",
+                            databaseType = "String",
+                            entityType = field.type
+                        )
+                    )
+                }
+            }
+        }
 
         return JpaFeatureConfiguration(
             inheritanceStrategy = inheritanceInfo,
@@ -142,7 +703,8 @@ class AdvancedJpaEntityGenerator(
             lifecycleCallbacks = lifecycleCallbacks,
             auditingEnabled = hasAuditing,
             versioningEnabled = hasVersioning,
-            softDeleteEnabled = hasSoftDelete
+            softDeleteEnabled = hasSoftDelete,
+            customConverters = customConverters
         )
     }
 

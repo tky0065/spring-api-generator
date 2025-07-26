@@ -2,7 +2,9 @@ package ${packageName}
 
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+<#if imports??>
 ${imports}
+</#if>
 
 /**
  * Service interface for managing ${entityName}s
@@ -39,13 +41,16 @@ interface ${serviceName} {
      * @param id the id of the entity
      * @return the entity
      */
-    fun findOne(id: ${idType}): ${dtoName}
+    fun findOne(id: ${idType!"Long"}): ${dtoName}?
 
     /**
      * Delete the "${entityVarName}" by id.
      *
      * @param id the id of the entity
      */
-    fun delete(id: ${idType})
+    fun delete(id: ${idType!"Long"})
+
+<#if customMethods?? && customMethods != "">
 ${customMethods}
+</#if>
 }

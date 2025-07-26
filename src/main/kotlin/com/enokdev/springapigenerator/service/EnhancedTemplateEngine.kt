@@ -33,6 +33,35 @@ class EnhancedTemplateEngine(private val project: Project) {
         model["fields"] = entityMetadata.fields
         model["packages"] = packageConfig
 
+        // ========== AJOUT DES VARIABLES DE BASE MANQUANTES ==========
+        // Variables pour les noms des classes et packages
+        model["packageName"] = packageConfig["controllerPackage"] ?: entityMetadata.controllerPackage
+        model["controllerName"] = "${entityMetadata.className}Controller"
+        model["serviceName"] = "${entityMetadata.className}Service"
+        model["repositoryName"] = "${entityMetadata.className}Repository"
+        model["dtoName"] = "${entityMetadata.className}DTO"
+        model["mapperName"] = "${entityMetadata.className}Mapper"
+
+        // Variables pour les noms de variables
+        model["entityVarName"] = entityMetadata.entityNameLower
+        model["serviceVarName"] = "${entityMetadata.entityNameLower}Service"
+        model["repositoryVarName"] = "${entityMetadata.entityNameLower}Repository"
+        model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
+
+        // Variables pour les API paths
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // Variables pour Swagger/API Documentation
+        model["apiTitle"] = "${entityMetadata.className} API"
+        model["apiDescription"] = "API for managing ${entityMetadata.className} entities"
+        model["apiVersion"] = "1.0.0"
+        model["apiLicense"] = "Apache 2.0"
+        model["apiLicenseUrl"] = "http://www.apache.org/licenses/LICENSE-2.0.html"
+        model["apiContact"] = "developer@example.com"
+        model["apiContactName"] = "API Support"
+        model["apiContactUrl"] = "https://example.com/support"
+
+        // Variables pour les imports
         // Add Spring Boot version info
         springBootInfo?.let { info ->
             model["springBoot"] = mapOf(
@@ -232,13 +261,35 @@ class EnhancedTemplateEngine(private val project: Project) {
             val attributes = if (arguments.size > 1) arguments[1].toString() else ""
 
             return when (validationType) {
+                // Basic validations
                 "notNull" -> "@NotNull"
                 "notBlank" -> "@NotBlank"
+                "notEmpty" -> "@NotEmpty"
                 "size" -> "@Size($attributes)"
+                
+                // Numeric validations
                 "min" -> "@Min($attributes)"
                 "max" -> "@Max($attributes)"
+                "positive" -> "@Positive"
+                "positiveOrZero" -> "@PositiveOrZero"
+                "negative" -> "@Negative"
+                "negativeOrZero" -> "@NegativeOrZero"
+                "decimalMin" -> "@DecimalMin($attributes)"
+                "decimalMax" -> "@DecimalMax($attributes)"
+                "digits" -> "@Digits($attributes)"
+                
+                // String validations
                 "email" -> "@Email"
                 "pattern" -> "@Pattern(regexp = \"$attributes\")"
+                "url" -> "@URL"
+                
+                // Date validations
+                "past" -> "@Past"
+                "pastOrPresent" -> "@PastOrPresent"
+                "future" -> "@Future"
+                "futureOrPresent" -> "@FutureOrPresent"
+                
+                // Custom validations
                 else -> "@$validationType"
             }
         }
@@ -432,11 +483,30 @@ class EnhancedTemplateEngine(private val project: Project) {
     }
 
     private fun generateValidationAnnotationsFragment(entityMetadata: EntityMetadata): String {
-        return """
-            @NotNull(message = "Field cannot be null")
-            @NotBlank(message = "Field cannot be blank")
-            @Size(min = 1, max = 255, message = "Field must be between 1 and 255 characters")
-        """.trimIndent()
+        val validationAnalyzer = EntityValidationAnalyzer()
+        val validationMap = validationAnalyzer.analyzeEntity(entityMetadata)
+        val crossFieldValidations = validationAnalyzer.generateCrossFieldValidations(entityMetadata)
+        
+        val sb = StringBuilder()
+        
+        // Add field-level validations
+        for ((fieldName, annotations) in validationMap) {
+            sb.append("// Validations for $fieldName\n")
+            for (annotation in annotations) {
+                sb.append(annotation.toAnnotationString()).append("\n")
+            }
+            sb.append("\n")
+        }
+        
+        // Add cross-field validations
+        if (crossFieldValidations.isNotEmpty()) {
+            sb.append("// Cross-field validations\n")
+            for (validation in crossFieldValidations) {
+                sb.append(validation.toAnnotationString()).append("\n")
+            }
+        }
+        
+        return sb.toString().trimIndent()
     }
 
     private fun generateSecurityAnnotationsFragment(): String {

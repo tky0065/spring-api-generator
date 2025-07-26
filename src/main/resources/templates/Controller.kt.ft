@@ -12,7 +12,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import javax.validation.Valid
+<#if imports??>
 ${imports}
+</#if>
 
 /**
  * REST controller for managing ${entityName}.
@@ -100,7 +102,7 @@ class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
             content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
         ApiResponse(responseCode = "404", description = "${entityName} not found")
     )
-    fun get${entityName}(@PathVariable id: ${idType}): ResponseEntity<${dtoName}> {
+    fun get${entityName}(@PathVariable id: ${idType!"Long"}): ResponseEntity<${dtoName}> {
         log.debug("REST request to get ${entityName} : {}", id)
         val ${entityVarName}DTO = ${serviceVarName}.findOne(id)
         return ResponseEntity.ok().body(${entityVarName}DTO)
@@ -118,10 +120,13 @@ class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
         ApiResponse(responseCode = "204", description = "${entityName} deleted successfully"),
         ApiResponse(responseCode = "404", description = "${entityName} not found")
     )
-    fun delete${entityName}(@PathVariable id: ${idType}): ResponseEntity<Void> {
+    fun delete${entityName}(@PathVariable id: ${idType!"Long"}): ResponseEntity<Void> {
         log.debug("REST request to delete ${entityName} : {}", id)
         ${serviceVarName}.delete(id)
         return ResponseEntity.noContent().build()
     }
+
+<#if customMethods?? && customMethods != "">
 ${customMethods}
+</#if>
 }

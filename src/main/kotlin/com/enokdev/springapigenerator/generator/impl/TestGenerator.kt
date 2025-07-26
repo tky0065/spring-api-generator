@@ -8,7 +8,11 @@ import java.nio.file.Paths
 /**
  * Generator for unit tests.
  */
-class TestGenerator : AbstractTemplateCodeGenerator("Test.java.ft") {
+class TestGenerator : AbstractTemplateCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "Test.java.ft"
+    }
 
     override fun getTargetFilePath(
         project: Project,
@@ -29,241 +33,267 @@ class TestGenerator : AbstractTemplateCodeGenerator("Test.java.ft") {
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
-        // Add test-specific model data
-        val testFields = generateTestFields(entityMetadata)
-        val testSetup = generateTestSetup(entityMetadata)
-        val testMethods = generateTestMethods(entityMetadata)
-        val additionalImports = generateAdditionalImports(entityMetadata)
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["testClassName"] = "${entityMetadata.serviceName}Test"
+        model["serviceName"] = entityMetadata.serviceName
+        model["serviceImplName"] = entityMetadata.serviceImplName
+        model["className"] = entityMetadata.className
+        model["entityName"] = entityMetadata.className
+        model["entityNameLower"] = entityMetadata.entityNameLower
+        model["dtoName"] = entityMetadata.dtoName
+        model["repositoryName"] = entityMetadata.repositoryName
+        model["mapperName"] = entityMetadata.mapperName
+        model["packageName"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
 
-        model["testFields"] = testFields
-        model["testSetup"] = testSetup
-        model["testMethods"] = testMethods
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+        model["serviceVarName"] = "${entityMetadata.entityNameLower}Service"
+        model["repositoryVarName"] = "${entityMetadata.entityNameLower}Repository"
+        model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
+        model["dtoVarName"] = "${entityMetadata.entityNameLower}DTO"
+
+        // ========== VARIABLES POUR LES API PATHS ==========
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // Add test-specific model data
+        val additionalImports = generateAdditionalImports(entityMetadata)
+        val testMethods = generateTestMethods(entityMetadata)
+        val mockSetup = generateMockSetup(entityMetadata)
+        val customMethods = generateCustomMethods(entityMetadata)
+
         model["additionalImports"] = additionalImports
+        model["imports"] = additionalImports
+        model["testMethods"] = testMethods
+        model["mockSetup"] = mockSetup
+        model["customMethods"] = customMethods
 
         return model
     }
 
     /**
-     * Generate field declarations for the test class.
-     */
-    private fun generateTestFields(entityMetadata: EntityMetadata): String {
-        val entityName = entityMetadata.className
-        val entityNameLower = entityMetadata.entityNameLower
-
-        return """
-            @Mock
-            private ${entityName}Repository ${entityNameLower}Repository;
-
-            @Mock
-            private ${entityName}Mapper ${entityNameLower}Mapper;
-
-            @InjectMocks
-            private ${entityName}ServiceImpl ${entityNameLower}Service;
-
-            private ${entityName} ${entityNameLower};
-            private ${entityName}DTO ${entityNameLower}DTO;
-            private List<${entityName}> ${entityNameLower}List;
-        """.trimIndent()
-    }
-
-    /**
-     * Generate test setup method.
-     */
-    private fun generateTestSetup(entityMetadata: EntityMetadata): String {
-        val entityName = entityMetadata.className
-        val entityNameLower = entityMetadata.entityNameLower
-        val idType = extractSimpleTypeName(entityMetadata.idType)
-
-        return """
-            @BeforeEach
-            void setUp() {
-                // Create test entity
-                ${entityNameLower} = new ${entityName}();
-                ${entityNameLower}.setId(($idType) 1L);
-                
-                // Create fields
-                ${generateEntityFieldSetters(entityMetadata)}
-                
-                // Create test DTO
-                ${entityNameLower}DTO = new ${entityName}DTO();
-                ${entityNameLower}DTO.setId(($idType) 1L);
-                ${generateDtoFieldSetters(entityMetadata)}
-                
-                // Create list of entities
-                ${entityNameLower}List = Arrays.asList(${entityNameLower});
-            }
-        """.trimIndent()
-    }
-
-    /**
-     * Generate setters for entity fields in test setup.
-     */
-    private fun generateEntityFieldSetters(entityMetadata: EntityMetadata): String {
-        val sb = StringBuilder()
-        val entityNameLower = entityMetadata.entityNameLower
-
-        entityMetadata.fields.forEach { field ->
-            if (field.name != "id" && !field.isCollection) {
-                val fieldValue = getTestValueForType(field.simpleTypeName)
-                sb.appendLine("${entityNameLower}.set${field.name.replaceFirstChar { it.uppercase() }}($fieldValue);")
-            }
-        }
-
-        return sb.toString()
-    }
-
-    /**
-     * Generate setters for DTO fields in test setup.
-     */
-    private fun generateDtoFieldSetters(entityMetadata: EntityMetadata): String {
-        val sb = StringBuilder()
-        val entityNameLower = entityMetadata.entityNameLower
-
-        entityMetadata.fields.forEach { field ->
-            if (field.name != "id" && !field.isCollection) {
-                val fieldValue = getTestValueForType(field.simpleTypeName)
-                sb.appendLine("${entityNameLower}DTO.set${field.name.replaceFirstChar { it.uppercase() }}($fieldValue);")
-            }
-        }
-
-        return sb.toString()
-    }
-
-    /**
-     * Generate test methods for CRUD operations.
-     */
-    private fun generateTestMethods(entityMetadata: EntityMetadata): String {
-        val entityName = entityMetadata.className
-        val entityNameLower = entityMetadata.entityNameLower
-        val idType = extractSimpleTypeName(entityMetadata.idType)
-
-        return """
-            @Test
-            void testFindAll() {
-                // Arrange
-                when(${entityNameLower}Repository.findAll()).thenReturn(${entityNameLower}List);
-                when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
-                
-                // Act
-                List<${entityName}DTO> result = ${entityNameLower}Service.findAll();
-                
-                // Assert
-                assertThat(result).isNotNull();
-                assertThat(result.size()).isEqualTo(1);
-                verify(${entityNameLower}Repository).findAll();
-            }
-            
-            @Test
-            void testFindOne() {
-                // Arrange
-                when(${entityNameLower}Repository.findById(any($idType.class))).thenReturn(Optional.of(${entityNameLower}));
-                when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
-                
-                // Act
-                ${entityName}DTO result = ${entityNameLower}Service.findOne(($idType) 1L);
-                
-                // Assert
-                assertThat(result).isNotNull();
-                assertThat(result.getId()).isEqualTo(${entityNameLower}DTO.getId());
-                verify(${entityNameLower}Repository).findById(any($idType.class));
-            }
-            
-            @Test
-            void testSave() {
-                // Arrange
-                when(${entityNameLower}Mapper.toEntity(any(${entityName}DTO.class))).thenReturn(${entityNameLower});
-                when(${entityNameLower}Repository.save(any(${entityName}.class))).thenReturn(${entityNameLower});
-                when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
-                
-                // Act
-                ${entityName}DTO result = ${entityNameLower}Service.save(${entityNameLower}DTO);
-                
-                // Assert
-                assertThat(result).isNotNull();
-                verify(${entityNameLower}Repository).save(any(${entityName}.class));
-                verify(${entityNameLower}Mapper).toDto(any(${entityName}.class));
-            }
-            
-            @Test
-            void testUpdate() {
-                // Arrange
-                when(${entityNameLower}Mapper.toEntity(any(${entityName}DTO.class))).thenReturn(${entityNameLower});
-                when(${entityNameLower}Repository.save(any(${entityName}.class))).thenReturn(${entityNameLower});
-                when(${entityNameLower}Mapper.toDto(any(${entityName}.class))).thenReturn(${entityNameLower}DTO);
-                
-                // Act
-                ${entityName}DTO result = ${entityNameLower}Service.update(${entityNameLower}DTO);
-                
-                // Assert
-                assertThat(result).isNotNull();
-                verify(${entityNameLower}Repository).save(any(${entityName}.class));
-                verify(${entityNameLower}Mapper).toDto(any(${entityName}.class));
-            }
-            
-            @Test
-            void testDelete() {
-                // Arrange
-                doNothing().when(${entityNameLower}Repository).deleteById(any($idType.class));
-                
-                // Act
-                ${entityNameLower}Service.delete(($idType) 1L);
-                
-                // Assert
-                verify(${entityNameLower}Repository).deleteById(any($idType.class));
-            }
-        """.trimIndent()
-    }
-
-    /**
-     * Generate additional imports needed for tests.
+     * Generate additional imports needed for the test class.
      */
     private fun generateAdditionalImports(entityMetadata: EntityMetadata): String {
         val imports = mutableSetOf<String>()
 
-        // Add imports for the entity, dto, repository, mapper, service
-        imports.add("${entityMetadata.domainPackage}.${entityMetadata.className}") // Le domainPackage contient maintenant le chemin vers entity
-        imports.add("${entityMetadata.dtoPackage}.${entityMetadata.dtoName}")
+        // Add imports for the classes being tested
+        imports.add("${entityMetadata.servicePackage}.impl.${entityMetadata.serviceImplName}")
         imports.add("${entityMetadata.repositoryPackage}.${entityMetadata.repositoryName}")
         imports.add("${entityMetadata.mapperPackage}.${entityMetadata.mapperName}")
-        imports.add("${entityMetadata.servicePackage}.${entityMetadata.serviceName}")
-        imports.add("${entityMetadata.servicePackage}.impl.${entityMetadata.serviceImplName}")
+        imports.add("${entityMetadata.domainPackage}.${entityMetadata.className}")
+        imports.add("${entityMetadata.dtoPackage}.${entityMetadata.dtoName}")
 
-        // Add common imports for testing
-        imports.add("org.junit.jupiter.api.BeforeEach")
+        // Add JUnit 5 imports
         imports.add("org.junit.jupiter.api.Test")
+        imports.add("org.junit.jupiter.api.BeforeEach")
+        imports.add("org.junit.jupiter.api.DisplayName")
         imports.add("org.junit.jupiter.api.extension.ExtendWith")
+
+        // Add Mockito imports
         imports.add("org.mockito.InjectMocks")
         imports.add("org.mockito.Mock")
         imports.add("org.mockito.junit.jupiter.MockitoExtension")
+        imports.add("org.mockito.Mockito.*")
 
-        imports.add("java.util.Arrays")
-        imports.add("java.util.List")
-        imports.add("java.util.Optional")
+        // Add Spring test imports
+        imports.add("org.springframework.test.context.junit.jupiter.SpringJUnitConfig")
 
-        imports.add("static org.assertj.core.api.Assertions.assertThat")
-        imports.add("static org.mockito.ArgumentMatchers.any")
-        imports.add("static org.mockito.Mockito.*")
+        // Add assertion imports
+        imports.add("org.assertj.core.api.Assertions.*")
+
+        // Add common Java imports
+        imports.add("java.util.*")
 
         return imports.joinToString("\n") { "import $it;" }
     }
 
     /**
-     * Get sample test values for field types.
+     * Generate mock setup code for the test class.
      */
-    private fun getTestValueForType(typeName: String): String {
-        return when (typeName) {
-            "String" -> "\"test\""
-            "Integer", "int" -> "123"
-            "Long", "long" -> "123L"
-            "Double", "double" -> "123.45"
-            "Float", "float" -> "123.45f"
-            "Boolean", "boolean" -> "true"
-            "LocalDate" -> "java.time.LocalDate.now()"
-            "LocalDateTime" -> "java.time.LocalDateTime.now()"
-            "ZonedDateTime" -> "java.time.ZonedDateTime.now()"
-            "BigDecimal" -> "new java.math.BigDecimal(\"123.45\")"
-            "UUID" -> "java.util.UUID.randomUUID()"
-            else -> "null"
+    private fun generateMockSetup(entityMetadata: EntityMetadata): String {
+        val setup = StringBuilder()
+
+        setup.append("""
+            @Mock
+            private ${entityMetadata.repositoryName} ${entityMetadata.entityNameLower}Repository;
+            
+            @Mock
+            private ${entityMetadata.mapperName} ${entityMetadata.entityNameLower}Mapper;
+            
+            @InjectMocks
+            private ${entityMetadata.serviceImplName} ${entityMetadata.entityNameLower}Service;
+            
+            private ${entityMetadata.className} ${entityMetadata.entityNameLower};
+            private ${entityMetadata.dtoName} ${entityMetadata.entityNameLower}DTO;
+            
+            @BeforeEach
+            void setUp() {
+                ${entityMetadata.entityNameLower} = create${entityMetadata.className}();
+                ${entityMetadata.entityNameLower}DTO = create${entityMetadata.className}DTO();
+            }
+        """.trimIndent())
+
+        return setup.toString()
+    }
+
+    /**
+     * Generate test methods for the service.
+     */
+    private fun generateTestMethods(entityMetadata: EntityMetadata): String {
+        val methods = StringBuilder()
+        val entityName = entityMetadata.className
+        val entityNameLower = entityMetadata.entityNameLower
+        val dtoName = entityMetadata.dtoName
+        val idType = entityMetadata.idType.substringAfterLast(".")
+
+        // Test findAll method
+        methods.append("""
+            @Test
+            @DisplayName("Should find all ${entityNameLower}s")
+            void shouldFindAll${entityName}s() {
+                // Given
+                List<${entityName}> ${entityNameLower}s = Arrays.asList(${entityNameLower});
+                List<${dtoName}> ${entityNameLower}DTOs = Arrays.asList(${entityNameLower}DTO);
+                
+                when(${entityNameLower}Repository.findAll()).thenReturn(${entityNameLower}s);
+                when(${entityNameLower}Mapper.toDto(${entityNameLower})).thenReturn(${entityNameLower}DTO);
+                
+                // When
+                List<${dtoName}> result = ${entityNameLower}Service.findAll();
+                
+                // Then
+                assertThat(result).isNotEmpty();
+                assertThat(result).hasSize(1);
+                assertThat(result.get(0)).isEqualTo(${entityNameLower}DTO);
+                
+                verify(${entityNameLower}Repository).findAll();
+                verify(${entityNameLower}Mapper).toDto(${entityNameLower});
+            }
+            
+        """.trimIndent())
+
+        // Test findById method
+        methods.append("""
+            @Test
+            @DisplayName("Should find ${entityNameLower} by id")
+            void shouldFind${entityName}ById() {
+                // Given
+                ${idType} id = 1L;
+                when(${entityNameLower}Repository.findById(id)).thenReturn(Optional.of(${entityNameLower}));
+                when(${entityNameLower}Mapper.toDto(${entityNameLower})).thenReturn(${entityNameLower}DTO);
+                
+                // When
+                Optional<${dtoName}> result = ${entityNameLower}Service.findById(id);
+                
+                // Then
+                assertThat(result).isPresent();
+                assertThat(result.get()).isEqualTo(${entityNameLower}DTO);
+                
+                verify(${entityNameLower}Repository).findById(id);
+                verify(${entityNameLower}Mapper).toDto(${entityNameLower});
+            }
+            
+        """.trimIndent())
+
+        // Test save method
+        methods.append("""
+            @Test
+            @DisplayName("Should save ${entityNameLower}")
+            void shouldSave${entityName}() {
+                // Given
+                when(${entityNameLower}Mapper.toEntity(${entityNameLower}DTO)).thenReturn(${entityNameLower});
+                when(${entityNameLower}Repository.save(${entityNameLower})).thenReturn(${entityNameLower});
+                when(${entityNameLower}Mapper.toDto(${entityNameLower})).thenReturn(${entityNameLower}DTO);
+                
+                // When
+                ${dtoName} result = ${entityNameLower}Service.save(${entityNameLower}DTO);
+                
+                // Then
+                assertThat(result).isEqualTo(${entityNameLower}DTO);
+                
+                verify(${entityNameLower}Mapper).toEntity(${entityNameLower}DTO);
+                verify(${entityNameLower}Repository).save(${entityNameLower});
+                verify(${entityNameLower}Mapper).toDto(${entityNameLower});
+            }
+            
+        """.trimIndent())
+
+        // Test delete method
+        methods.append("""
+            @Test
+            @DisplayName("Should delete ${entityNameLower}")
+            void shouldDelete${entityName}() {
+                // Given
+                ${idType} id = 1L;
+                
+                // When
+                ${entityNameLower}Service.deleteById(id);
+                
+                // Then
+                verify(${entityNameLower}Repository).deleteById(id);
+            }
+            
+        """.trimIndent())
+
+        // Helper methods for creating test objects
+        methods.append("""
+            private ${entityName} create${entityName}() {
+                ${entityName} entity = new ${entityName}();
+                // Set test data for entity fields
+        """.trimIndent())
+
+        // Generate field setters for the entity
+        entityMetadata.fields.forEach { field ->
+            if (!field.isCollection && field.name != "id") {
+                when (field.simpleTypeName) {
+                    "String" -> methods.append("\n        entity.set${field.name.replaceFirstChar { it.uppercase() }}(\"test${field.name}\");")
+                    "Integer", "int" -> methods.append("\n        entity.set${field.name.replaceFirstChar { it.uppercase() }}(1);")
+                    "Long", "long" -> methods.append("\n        entity.set${field.name.replaceFirstChar { it.uppercase() }}(1L);")
+                    "Boolean", "boolean" -> methods.append("\n        entity.set${field.name.replaceFirstChar { it.uppercase() }}(true);")
+                    "Double", "double" -> methods.append("\n        entity.set${field.name.replaceFirstChar { it.uppercase() }}(1.0);")
+                    "Float", "float" -> methods.append("\n        entity.set${field.name.replaceFirstChar { it.uppercase() }}(1.0f);")
+                    else -> methods.append("\n        // entity.set${field.name.replaceFirstChar { it.uppercase() }}(/* set appropriate test value */);")
+                }
+            }
         }
+
+        methods.append("""
+                return entity;
+            }
+            
+            private ${dtoName} create${entityName}DTO() {
+                ${dtoName} dto = new ${dtoName}();
+                // Set test data for DTO fields
+        """.trimIndent())
+
+        // Generate field setters for the DTO
+        entityMetadata.fields.forEach { field ->
+            if (!field.isCollection && field.name != "id") {
+                when (field.simpleTypeName) {
+                    "String" -> methods.append("\n        dto.set${field.name.replaceFirstChar { it.uppercase() }}(\"test${field.name}\");")
+                    "Integer", "int" -> methods.append("\n        dto.set${field.name.replaceFirstChar { it.uppercase() }}(1);")
+                    "Long", "long" -> methods.append("\n        dto.set${field.name.replaceFirstChar { it.uppercase() }}(1L);")
+                    "Boolean", "boolean" -> methods.append("\n        dto.set${field.name.replaceFirstChar { it.uppercase() }}(true);")
+                    "Double", "double" -> methods.append("\n        dto.set${field.name.replaceFirstChar { it.uppercase() }}(1.0);")
+                    "Float", "float" -> methods.append("\n        dto.set${field.name.replaceFirstChar { it.uppercase() }}(1.0f);")
+                    else -> methods.append("\n        // dto.set${field.name.replaceFirstChar { it.uppercase() }}(/* set appropriate test value */);")
+                }
+            }
+        }
+
+        methods.append("""
+                return dto;
+            }
+        """.trimIndent())
+
+        return methods.toString()
+    }
+
+    /**
+     * Generate custom methods for the test.
+     */
+    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
+        // Return empty string for now, can be expanded later
+        return ""
     }
 }

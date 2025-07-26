@@ -1,32 +1,32 @@
-package ${packageName}
+package ${packageName!"${basePackage}.repository"}
 
-<#-- Generate imports based on ID configuration -->
-<#list repositoryImports as import>
-import ${import}
-</#list>
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.util.*
+<#if imports??>
+${imports}
+</#if>
 
 /**
- * Repository interface for ${className} with ${idConfig.javaType} ID support (Kotlin version).
+ * Repository interface for ${className!"Entity"} with ${idConfig.javaType!"Long"} ID support (Kotlin version).
  * Generated with custom ID type handling.
  */
-<#if idConfig.requiresCustomRepository>
+<#if idConfig.requiresCustomRepository!false>
 @Repository
 </#if>
-interface ${className}Repository : ${extendsInterface?replace("T", className)} {
+interface ${className!"Entity"}Repository : JpaRepository<${entityName!"Entity"}, ${idType!"Long"}> {
 
-<#-- Generate custom repository methods based on ID type -->
-<#if customRepositoryMethods?has_content>
-    // Custom methods for ${idConfig.type} ID type
+<#if customRepositoryMethods?? && customRepositoryMethods?has_content>
+    // Custom methods for ${idConfig.type!"Long"} ID type
 <#list customRepositoryMethods as method>
-    ${method.replace("List<", "List<").replace("Optional<", "Optional<")}
+    ${method}
 
 </#list>
 </#if>
 
-<#-- Generate query methods -->
-<#if queryMethods?has_content>
+<#if queryMethods?? && queryMethods?has_content>
     // Enhanced query methods
 <#list queryMethods as method>
     ${method}
@@ -34,8 +34,7 @@ interface ${className}Repository : ${extendsInterface?replace("T", className)} {
 </#list>
 </#if>
 
-<#-- Generate ID-specific finder methods -->
-<#if idConfig.isUuid>
+<#if idConfig.isUuid!false>
     /**
      * Generate a new UUID for entity creation.
      */
@@ -44,15 +43,15 @@ interface ${className}Repository : ${extendsInterface?replace("T", className)} {
     /**
      * Find entity by UUID with null safety.
      */
-    fun findByIdSafely(id: UUID?): Optional<${className}> =
+    fun findByIdSafely(id: UUID?): Optional<${className!"Entity"}> =
         if (id != null) findById(id) else Optional.empty()
 </#if>
 
-<#if idConfig.isString>
+<#if idConfig.isString!false>
     /**
      * Find entities with ID validation.
      */
-    fun findByValidId(id: String?): List<${className}> {
+    fun findByValidId(id: String?): List<${className!"Entity"}> {
         return if (id.isNullOrBlank()) {
             emptyList()
         } else {
@@ -65,29 +64,50 @@ interface ${className}Repository : ${extendsInterface?replace("T", className)} {
      */
     fun suggestIds(partial: String): List<String> {
         return findByIdStartingWithIgnoreCase(partial)
-            .map { it.id }
-            .filterNotNull()
+            .mapNotNull { it.id }
             .distinct()
             .take(10)
     }
+
+    /**
+     * Find by ID ignoring case.
+     */
+    fun findByIdIgnoreCase(id: String): List<${className!"Entity"}>
+
+    /**
+     * Find by ID starting with (ignoring case).
+     */
+    fun findByIdStartingWithIgnoreCase(idPrefix: String): List<${className!"Entity"}>
 </#if>
 
-<#if idConfig.isComposite>
+<#if idConfig.isComposite!false>
     /**
      * Validate composite key before operations.
      */
-    fun isValidCompositeKey(key: ${idConfig.compositeKeyClass?split(".")?last}?): Boolean = key != null
+    fun isValidCompositeKey(key: ${idConfig.compositeKeyClass!"CompositeKey"}?): Boolean =
+        key != null && key.isValid()
+
+    /**
+     * Find by composite key parts.
+     */
+    @Query("SELECT e FROM ${entityName!"Entity"} e WHERE e.id.part1 = :part1 AND e.id.part2 = :part2")
+    fun findByCompositeKeyParts(@Param("part1") part1: Any, @Param("part2") part2: Any): List<${className!"Entity"}>
 </#if>
 
-<#if idConfig.isEmbedded>
+<#if idConfig.isEmbedded!false>
     /**
      * Create embedded ID instance.
      */
-    fun createEmbeddedId(): ${idConfig.embeddedIdClass?split(".")?last} = ${idConfig.embeddedIdClass?split(".")?last}()
+    fun createEmbeddedId(): ${idConfig.embeddedIdClass!"EmbeddedId"} = ${idConfig.embeddedIdClass!"EmbeddedId"}()
 
     /**
      * Validate embedded ID before operations.
      */
-    fun isValidEmbeddedId(id: ${idConfig.embeddedIdClass?split(".")?last}?): Boolean = id != null
+    fun isValidEmbeddedId(id: ${idConfig.embeddedIdClass!"EmbeddedId"}?): Boolean =
+        id != null && id.isValid()
+</#if>
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
 </#if>
 }

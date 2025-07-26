@@ -8,7 +8,11 @@ import java.nio.file.Paths
 /**
  * Generator for global exception handler.
  */
-class GlobalExceptionHandlerGenerator : AbstractTemplateCodeGenerator("GlobalExceptionHandler.java.ft") {
+class GlobalExceptionHandlerGenerator : AbstractTemplateCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "GlobalExceptionHandler.java.ft"
+    }
 
     override fun getTargetFilePath(
         project: Project,
@@ -28,14 +32,26 @@ class GlobalExceptionHandlerGenerator : AbstractTemplateCodeGenerator("GlobalExc
         packageConfig: Map<String, String>
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
-
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val exceptionPackage = packageConfig["exceptionPackage"] ?: "$basePackage.exception"
 
-        // Add exception handler specific data
-        model["exceptionPackage"] = exceptionPackage
-        model["entityNameLower"] = entityMetadata.entityNameLower
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["packageName"] = exceptionPackage
+        model["basePackage"] = basePackage
+        model["className"] = "GlobalExceptionHandler"
         model["entityName"] = entityMetadata.className
+        model["entityNameLower"] = entityMetadata.entityNameLower
+        model["exceptionPackage"] = exceptionPackage
+
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+
+        // ========== VARIABLES POUR LES API PATHS ==========
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // ========== VARIABLES POUR LES IMPORTS ET MÉTHODES PERSONNALISÉES ==========
+        model["imports"] = ""
+        model["customMethods"] = ""
 
         return model
     }

@@ -10,12 +10,14 @@ import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import java.util.Optional
 import javax.persistence.EntityNotFoundException
+<#if imports??>
 ${imports}
+</#if>
 
 /**
- * Unit tests for [${serviceImplName}].
+ * Unit tests for [${serviceImplName!"${entityName}ServiceImpl"}].
  */
-class ${testName} {
+class ${testClassName!"${serviceName}Test"} {
 
     private lateinit var ${repositoryVarName}: ${repositoryName}
     private lateinit var ${mapperVarName}: ${mapperName}
@@ -25,7 +27,7 @@ class ${testName} {
     fun setUp() {
         ${repositoryVarName} = mockk()
         ${mapperVarName} = mockk()
-        ${serviceVarName} = ${serviceImplName}(${repositoryVarName}, ${mapperVarName})
+        ${serviceVarName} = ${serviceImplName!"${entityName}ServiceImpl"}(${repositoryVarName}, ${mapperVarName})
     }
 
     @Test
@@ -42,20 +44,19 @@ class ${testName} {
         val result = ${serviceVarName}.save(${entityVarName}DTO)
 
         // Then
+        assert(result == ${entityVarName}DTO)
         verify { ${mapperVarName}.toEntity(${entityVarName}DTO) }
         verify { ${repositoryVarName}.save(${entityVarName}) }
         verify { ${mapperVarName}.toDto(${entityVarName}) }
-        assert(result == ${entityVarName}DTO)
     }
 
     @Test
-    fun `should update existing ${entityName}`() {
+    fun `should update ${entityName}`() {
         // Given
         val ${entityVarName}DTO = create${entityName}DTO()
-        ${entityVarName}DTO.id = ${idValue}
         val ${entityVarName} = create${entityName}()
 
-        every { ${repositoryVarName}.existsById(${idValue}) } returns true
+        every { ${repositoryVarName}.existsById(any()) } returns true
         every { ${mapperVarName}.toEntity(any()) } returns ${entityVarName}
         every { ${repositoryVarName}.save(any()) } returns ${entityVarName}
         every { ${mapperVarName}.toDto(any()) } returns ${entityVarName}DTO
@@ -64,11 +65,11 @@ class ${testName} {
         val result = ${serviceVarName}.update(${entityVarName}DTO)
 
         // Then
-        verify { ${repositoryVarName}.existsById(${idValue}) }
+        assert(result == ${entityVarName}DTO)
+        verify { ${repositoryVarName}.existsById(any()) }
         verify { ${mapperVarName}.toEntity(${entityVarName}DTO) }
         verify { ${repositoryVarName}.save(${entityVarName}) }
         verify { ${mapperVarName}.toDto(${entityVarName}) }
-        assert(result == ${entityVarName}DTO)
     }
 
     @Test
@@ -90,40 +91,40 @@ class ${testName} {
     @Test
     fun `should find all ${entityName}s`() {
         // Given
-        val pageable = PageRequest.of(0, 20)
-        val ${entityVarName} = create${entityName}()
-        val ${entityVarName}DTO = create${entityName}DTO()
-        val page = PageImpl(listOf(${entityVarName}))
+        val pageable = PageRequest.of(0, 10)
+        val ${entityVarName}List = listOf(create${entityName}())
+        val ${entityVarName}Page = PageImpl(${entityVarName}List, pageable, 1)
+        val ${entityVarName}DTOList = listOf(create${entityName}DTO())
+        val ${entityVarName}DTOPage = PageImpl(${entityVarName}DTOList, pageable, 1)
 
-        every { ${repositoryVarName}.findAll(pageable) } returns page
-        every { ${mapperVarName}.toDto(any<${entityName}>()) } returns ${entityVarName}DTO
+        every { ${repositoryVarName}.findAll(pageable) } returns ${entityVarName}Page
+        every { ${mapperVarName}.toDto(any<${entityName}>()) } returns create${entityName}DTO()
 
         // When
         val result = ${serviceVarName}.findAll(pageable)
 
         // Then
-        verify { ${repositoryVarName}.findAll(pageable) }
-        verify { ${mapperVarName}.toDto(${entityVarName}) }
         assert(result.content.size == 1)
-        assert(result.content[0] == ${entityVarName}DTO)
+        verify { ${repositoryVarName}.findAll(pageable) }
     }
 
     @Test
     fun `should find one ${entityName}`() {
         // Given
+        val id = 1L
         val ${entityVarName} = create${entityName}()
         val ${entityVarName}DTO = create${entityName}DTO()
 
-        every { ${repositoryVarName}.findById(${idValue}) } returns Optional.of(${entityVarName})
-        every { ${mapperVarName}.toDto(any<${entityName}>()) } returns ${entityVarName}DTO
+        every { ${repositoryVarName}.findById(id) } returns Optional.of(${entityVarName})
+        every { ${mapperVarName}.toDto(${entityVarName}) } returns ${entityVarName}DTO
 
         // When
-        val result = ${serviceVarName}.findOne(${idValue})
+        val result = ${serviceVarName}.findOne(id)
 
         // Then
-        verify { ${repositoryVarName}.findById(${idValue}) }
-        verify { ${mapperVarName}.toDto(${entityVarName}) }
         assert(result == ${entityVarName}DTO)
+        verify { ${repositoryVarName}.findById(id) }
+        verify { ${mapperVarName}.toDto(${entityVarName}) }
     }
 
     @Test
@@ -142,35 +143,31 @@ class ${testName} {
     @Test
     fun `should delete ${entityName}`() {
         // Given
-        every { ${repositoryVarName}.existsById(${idValue}) } returns true
-        every { ${repositoryVarName}.deleteById(${idValue}) } returns Unit
+        val id = 1L
+
+        every { ${repositoryVarName}.deleteById(id) } returns Unit
 
         // When
-        ${serviceVarName}.delete(${idValue})
+        ${serviceVarName}.delete(id)
 
         // Then
-        verify { ${repositoryVarName}.existsById(${idValue}) }
-        verify { ${repositoryVarName}.deleteById(${idValue}) }
+        verify { ${repositoryVarName}.deleteById(id) }
     }
 
-    @Test
-    fun `should throw exception when deleting non-existing ${entityName}`() {
-        // Given
-        every { ${repositoryVarName}.existsById(${idValue}) } returns false
-
-        // When & Then
-        assertThrows<EntityNotFoundException> {
-            ${serviceVarName}.delete(${idValue})
+    private fun create${entityName}(): ${entityName} {
+        return ${entityName}().apply {
+            // Set test data
         }
-
-        verify { ${repositoryVarName}.existsById(${idValue}) }
     }
 
-    private fun create${entityName}() = ${entityName}(
-        // Add entity creation code here
-    )
+    private fun create${entityName}DTO(): ${dtoName} {
+        return ${dtoName}(
+            id = 1L
+            // Add other fields as needed
+        )
+    }
 
-    private fun create${entityName}DTO() = ${dtoName}(
-        // Add DTO creation code here
-    )
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

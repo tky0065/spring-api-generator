@@ -1,21 +1,22 @@
-package ${packageName}
+package ${packageName!"${basePackage}.service"}
 
-import ${packageName?keep_before_last(".")}.entity.User
-import ${packageName?keep_before_last(".")}.repository.UserRepository
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.Optional
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Service for user management.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Service
-class UserService @Autowired constructor(
-    private val userRepository: UserRepository,
+class ${className!"UserService"} @Autowired constructor(
+    private val ${repositoryVarName!"userRepository"}: ${repositoryName!"UserRepository"},
     private val passwordEncoder: PasswordEncoder
 ) {
 
@@ -27,24 +28,26 @@ class UserService @Autowired constructor(
      * @throws IllegalArgumentException if user with the same username or email already exists
      */
     @Transactional
-    fun createUser(user: User): User {
-        if (userRepository.existsByUsername(user.username)) {
-            throw IllegalArgumentException("Username already exists: ${user.username}")
+    fun createUser(user: ${entityName!"User"}): ${entityName!"User"} {
+        if (${repositoryVarName!"userRepository"}.existsByUsername(user.username)) {
+            throw IllegalArgumentException("Username already exists: \${user.username}")
         }
 
-        if (userRepository.existsByEmail(user.email)) {
-            throw IllegalArgumentException("Email already exists: ${user.email}")
+        if (${repositoryVarName!"userRepository"}.existsByEmail(user.email)) {
+            throw IllegalArgumentException("Email already exists: \${user.email}")
         }
 
         // Encode the password before saving
-        user.password = passwordEncoder.encode(user.password)
+        val encodedUser = user.copy(password = passwordEncoder.encode(user.password))
 
         // Add default role if no roles are specified
-        if (user.roles.isEmpty()) {
-            user.addRole("ROLE_USER")
+        val userWithRole = if (encodedUser.role == null) {
+            encodedUser.copy(role = ${entityName!"User"}.Role.USER)
+        } else {
+            encodedUser
         }
 
-        return userRepository.save(user)
+        return ${repositoryVarName!"userRepository"}.save(userWithRole)
     }
 
     /**
@@ -55,20 +58,23 @@ class UserService @Autowired constructor(
      * @return the updated user
      */
     @Transactional
-    fun updateUser(id: Long, userDetails: User): User {
-        val user = userRepository.findById(id)
+    fun updateUser(id: ${idType!"Long"}, userDetails: ${entityName!"User"}): ${entityName!"User"} {
+        val existingUser = ${repositoryVarName!"userRepository"}.findById(id)
             .orElseThrow { NoSuchElementException("User not found with id $id") }
 
         // Update the fields
-        user.email = userDetails.email
-        user.fullName = userDetails.fullName
+        val updatedUser = existingUser.copy(
+            email = userDetails.email,
+            fullName = userDetails.fullName,
+            // Only update password if it's provided and not empty
+            password = if (userDetails.password.isNotBlank()) {
+                passwordEncoder.encode(userDetails.password)
+            } else {
+                existingUser.password
+            }
+        )
 
-        // Only update password if it's provided and not empty
-        if (userDetails.password.isNotBlank()) {
-            user.password = passwordEncoder.encode(userDetails.password)
-        }
-
-        return userRepository.save(user)
+        return ${repositoryVarName!"userRepository"}.save(updatedUser)
     }
 
     /**
@@ -78,8 +84,8 @@ class UserService @Autowired constructor(
      * @return the user if found
      */
     @Transactional(readOnly = true)
-    fun findByUsername(username: String): Optional<User> {
-        return userRepository.findByUsername(username)
+    fun findByUsername(username: String): ${entityName!"User"}? {
+        return ${repositoryVarName!"userRepository"}.findByUsername(username).orElse(null)
     }
 
     /**
@@ -89,8 +95,8 @@ class UserService @Autowired constructor(
      * @return the user if found
      */
     @Transactional(readOnly = true)
-    fun findByEmail(email: String): Optional<User> {
-        return userRepository.findByEmail(email)
+    fun findByEmail(email: String): ${entityName!"User"}? {
+        return ${repositoryVarName!"userRepository"}.findByEmail(email).orElse(null)
     }
 
     /**
@@ -100,8 +106,8 @@ class UserService @Autowired constructor(
      * @return the user if found
      */
     @Transactional(readOnly = true)
-    fun findById(id: Long): Optional<User> {
-        return userRepository.findById(id)
+    fun findById(id: ${idType!"Long"}): ${entityName!"User"}? {
+        return ${repositoryVarName!"userRepository"}.findById(id).orElse(null)
     }
 
     /**
@@ -110,8 +116,29 @@ class UserService @Autowired constructor(
      * @return list of all users
      */
     @Transactional(readOnly = true)
-    fun findAll(): List<User> {
-        return userRepository.findAll()
+    fun findAll(): List<${entityName!"User"}> {
+        return ${repositoryVarName!"userRepository"}.findAll()
+    }
+
+    /**
+     * Get all enabled users.
+     *
+     * @return list of enabled users
+     */
+    @Transactional(readOnly = true)
+    fun findAllEnabled(): List<${entityName!"User"}> {
+        return ${repositoryVarName!"userRepository"}.findByEnabledTrue()
+    }
+
+    /**
+     * Find users by role.
+     *
+     * @param role the role to filter by
+     * @return list of users with the specified role
+     */
+    @Transactional(readOnly = true)
+    fun findByRole(role: ${entityName!"User"}.Role): List<${entityName!"User"}> {
+        return ${repositoryVarName!"userRepository"}.findByRole(role)
     }
 
     /**
@@ -120,9 +147,9 @@ class UserService @Autowired constructor(
      * @param id the user ID to delete
      */
     @Transactional
-    fun deleteUser(id: Long) {
-        if (userRepository.existsById(id)) {
-            userRepository.deleteById(id)
+    fun deleteUser(id: ${idType!"Long"}) {
+        if (${repositoryVarName!"userRepository"}.existsById(id)) {
+            ${repositoryVarName!"userRepository"}.deleteById(id)
         } else {
             throw NoSuchElementException("User not found with id $id")
         }
@@ -136,11 +163,53 @@ class UserService @Autowired constructor(
      * @return the updated user
      */
     @Transactional
-    fun changePassword(userId: Long, newPassword: String): User {
-        val user = userRepository.findById(userId)
+    fun changePassword(userId: ${idType!"Long"}, newPassword: String): ${entityName!"User"} {
+        val user = ${repositoryVarName!"userRepository"}.findById(userId)
             .orElseThrow { NoSuchElementException("User not found with id $userId") }
 
-        user.password = passwordEncoder.encode(newPassword)
-        return userRepository.save(user)
+        val updatedUser = user.copy(password = passwordEncoder.encode(newPassword))
+        return ${repositoryVarName!"userRepository"}.save(updatedUser)
     }
+
+    /**
+     * Enable or disable a user.
+     *
+     * @param userId the user ID
+     * @param enabled the enabled status
+     * @return the updated user
+     */
+    @Transactional
+    fun setUserEnabled(userId: ${idType!"Long"}, enabled: Boolean): ${entityName!"User"} {
+        val user = ${repositoryVarName!"userRepository"}.findById(userId)
+            .orElseThrow { NoSuchElementException("User not found with id $userId") }
+
+        val updatedUser = user.copy(enabled = enabled)
+        return ${repositoryVarName!"userRepository"}.save(updatedUser)
+    }
+
+    /**
+     * Check if a user exists by username.
+     *
+     * @param username the username to check
+     * @return true if user exists
+     */
+    @Transactional(readOnly = true)
+    fun existsByUsername(username: String): Boolean {
+        return ${repositoryVarName!"userRepository"}.existsByUsername(username)
+    }
+
+    /**
+     * Check if a user exists by email.
+     *
+     * @param email the email to check
+     * @return true if user exists
+     */
+    @Transactional(readOnly = true)
+    fun existsByEmail(email: String): Boolean {
+        return ${repositoryVarName!"userRepository"}.existsByEmail(email)
+    }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

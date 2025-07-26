@@ -10,23 +10,10 @@ import java.nio.file.Paths
  * This generator creates the necessary configuration for Spring Boot applications
  * to expose OpenAPI 3.0 documentation via springdoc-openapi.
  */
-class OpenApiConfigGenerator : AbstractTemplateCodeGenerator("OpenApiConfig.java.ft") {
+class OpenApiConfigGenerator : AbstractTemplateCodeGenerator() {
 
-    companion object {
-        // Templates Java et Kotlin
-        const val OPENAPI_CONFIG_TEMPLATE_JAVA = "OpenApiConfig.java.ft"
-        const val OPENAPI_CONFIG_TEMPLATE_KOTLIN = "OpenApiConfig.kt.ft"
-    }
-
-    /**
-     * Détermine le template à utiliser en fonction du type de projet.
-     */
-    private fun getOpenApiConfigTemplate(project: Project): String {
-        return if (com.enokdev.springapigenerator.service.ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
-            OPENAPI_CONFIG_TEMPLATE_KOTLIN
-        } else {
-            OPENAPI_CONFIG_TEMPLATE_JAVA
-        }
+    override fun getBaseTemplateName(): String {
+        return "OpenApiConfig.java.ft"
     }
 
     override fun getTargetFilePath(
@@ -43,58 +30,39 @@ class OpenApiConfigGenerator : AbstractTemplateCodeGenerator("OpenApiConfig.java
         return Paths.get(sourceRoot, configDir, fileName).toString()
     }
 
-    /**
-     * Generate code using the template engine.
-     */
-    override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        val cfg = createFreemarkerConfig()
-        val template = cfg.getTemplate(getOpenApiConfigTemplate(project))
-        val dataModel = createDataModel(entityMetadata, packageConfig)
-
-        val writer = java.io.StringWriter()
-        try {
-            template.process(dataModel, writer)
-        } catch (e: freemarker.template.TemplateException) {
-            throw RuntimeException("Error processing template: ${e.message}", e)
-        }
-
-        return writer.toString()
-    }
-
-    override fun createDataModel(
-        entityMetadata: EntityMetadata,
-        packageConfig: Map<String, String>
-    ): MutableMap<String, Any> {
+    override fun createDataModel(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
-
         val basePackage = packageConfig["basePackage"] ?: entityMetadata.entityBasePackage
         val configPackage = packageConfig["configPackage"] ?: "$basePackage.config"
-        val apiTitle = "API for ${entityMetadata.className}"
-        val apiDescription = "REST API for managing ${entityMetadata.className} resources"
-        val apiVersion = "1.0"
-        val apiLicense = "MIT"
-        val apiContact = "contact@example.com"
-        val controllerPackage = packageConfig["controllerPackage"] ?: "$basePackage.controller"
 
-        model["configPackage"] = configPackage
-        model["apiTitle"] = apiTitle
-        model["apiDescription"] = apiDescription
-        model["apiVersion"] = apiVersion
-        model["apiLicense"] = apiLicense
-        model["apiContact"] = apiContact
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["packageName"] = configPackage
         model["basePackage"] = basePackage
-        model["controllerPackage"] = controllerPackage
+        model["className"] = "OpenApiConfig"
         model["entityName"] = entityMetadata.className
-        model["entityNameLowerCase"] = entityMetadata.className.decapitalize()
+        model["entityNameLower"] = entityMetadata.entityNameLower
+
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+
+        // ========== VARIABLES POUR LES API PATHS ==========
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // ========== VARIABLES POUR OPENAPI DOCUMENTATION ==========
+        model["apiTitle"] = "${entityMetadata.className} API Documentation"
+        model["apiDescription"] = "OpenAPI 3.0 documentation for ${entityMetadata.className} REST API"
+        model["apiVersion"] = "1.0.0"
+        model["apiTermsOfService"] = "https://example.com/terms"
+        model["contactName"] = "API Support"
+        model["contactEmail"] = "support@example.com"
+        model["contactUrl"] = "https://example.com/support"
+        model["licenseName"] = "Apache 2.0"
+        model["licenseUrl"] = "https://www.apache.org/licenses/LICENSE-2.0"
+
+        // ========== VARIABLES POUR LES IMPORTS ET MÉTHODES PERSONNALISÉES ==========
+        model["imports"] = ""
+        model["customMethods"] = ""
 
         return model
-    }
-
-    /**
-     * Helper extension function to decapitalize a string
-     */
-    private fun String.decapitalize(): String {
-        return if (isEmpty() || !this[0].isUpperCase()) this
-        else this[0].lowercase() + substring(1)
     }
 }

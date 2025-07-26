@@ -28,6 +28,13 @@ ${inheritanceCode}
 <#if jpaFeatures.hasAuditing>
 @EntityListeners(AuditingEntityListener.class)
 </#if>
+<#-- Add cross-field validation annotations -->
+<#if crossFieldValidations?? && crossFieldValidations?size gt 0>
+// Cross-field validations
+<#list crossFieldValidations as validation>
+${validation.toAnnotationString()}
+</#list>
+</#if>
 public<#if jpaFeatures.isMappedSuperclass> abstract</#if> class ${className}<#if superClass??> extends ${superClass}</#if> {
 
     <#-- Generate ID field -->
@@ -38,12 +45,20 @@ public<#if jpaFeatures.isMappedSuperclass> abstract</#if> class ${className}<#if
     <#-- Generate regular fields -->
     <#list fields as field>
     <#if field.relationType == "NONE">
-    <#if helpers.validation??>
-        <#if field.nullable == false>
+    <#-- Apply field validations -->
+    <#if fieldValidations?? && fieldValidations[field.name]??>
+        <#list fieldValidations[field.name] as validation>
+    ${validation.toAnnotationString()}
+        </#list>
+    <#else>
+        <#-- Fallback to basic validation if enhanced validation is not available -->
+        <#if helpers.validation??>
+            <#if field.nullable == false>
     ${helpers.validation("notNull")}
-        </#if>
-        <#if field.type == "String">
+            </#if>
+            <#if field.type == "String">
     ${helpers.validation("notBlank")}
+            </#if>
         </#if>
     </#if>
     @Column(name = "${field.columnName!field.name}")

@@ -7,19 +7,21 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.Optional
 import javax.persistence.EntityNotFoundException
+<#if imports??>
 ${imports}
+</#if>
 
 /**
  * Service Implementation for managing ${entityName}.
  */
 @Service
 @Transactional
-class ${serviceImplName}(
+class ${serviceImplName!"${entityName}ServiceImpl"}(
     private val ${repositoryVarName}: ${repositoryName},
     private val ${mapperVarName}: ${mapperName}
 ) : ${serviceName} {
 
-    private val log = LoggerFactory.getLogger(${serviceImplName}::class.java)
+    private val log = LoggerFactory.getLogger(${serviceImplName!"${entityName}ServiceImpl"}::class.java)
 
     /**
      * Save a ${entityName}.
@@ -49,7 +51,7 @@ class ${serviceImplName}(
             if (!${repositoryVarName}.existsById(id)) {
                 throw EntityNotFoundException("${entityName} not found with id $id")
             }
-        } ?: throw IllegalArgumentException("Invalid id")
+        }
 
         var ${entityVarName} = ${mapperVarName}.toEntity(${entityVarName}DTO)
         ${entityVarName} = ${repositoryVarName}.save(${entityVarName})
@@ -70,30 +72,30 @@ class ${serviceImplName}(
     }
 
     /**
-     * Get one ${entityName} by id.
+     * Get one ${entityVarName} by id.
      *
      * @param id the id of the entity
      * @return the entity
      */
     @Transactional(readOnly = true)
-    override fun findOne(id: ${idType}): ${dtoName} {
+    override fun findOne(id: ${idType!"Long"}): ${dtoName}? {
         log.debug("Request to get ${entityName} : {}", id)
         return ${repositoryVarName}.findById(id)
             .map(${mapperVarName}::toDto)
-            .orElseThrow { EntityNotFoundException("${entityName} not found with id $id") }
+            .orElse(null)
     }
 
     /**
-     * Delete the ${entityName} by id.
+     * Delete the ${entityVarName} by id.
      *
      * @param id the id of the entity
      */
-    override fun delete(id: ${idType}) {
+    override fun delete(id: ${idType!"Long"}) {
         log.debug("Request to delete ${entityName} : {}", id)
-        if (!${repositoryVarName}.existsById(id)) {
-            throw EntityNotFoundException("${entityName} not found with id $id")
-        }
         ${repositoryVarName}.deleteById(id)
     }
+
+<#if customMethods?? && customMethods != "">
 ${customMethods}
+</#if>
 }

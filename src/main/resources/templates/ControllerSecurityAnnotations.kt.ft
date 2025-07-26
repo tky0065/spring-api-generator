@@ -1,21 +1,97 @@
-// Security annotations for ${entityName}Controller
+package ${packageName!"${basePackage}.controller"}
+
+import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.web.bind.annotation.*
+import org.springframework.http.ResponseEntity
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import jakarta.validation.Valid
+<#if imports??>
+${imports}
+</#if>
+
+/**
+ * Security annotations for ${entityName!"Entity"}Controller (Kotlin version).
+ * This template shows how to apply role-based security to controller methods.
+ */
+@RestController
+@RequestMapping("/api/${entityApiPath!"entities"}")
 @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-class ${entityName}Controller {
+class ${className!"Entity"}Controller(
+    private val ${serviceVarName}: ${serviceName}
+) {
 
     // Read operations - accessible to users with ADMIN or USER roles
+    @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-    fun findById(...): ${entityName}Dto { ... }
+    fun findById(@PathVariable id: ${idType!"Long"}): ResponseEntity<${dtoName}> {
+        val entity = ${serviceVarName}.findOne(id)
+        return if (entity != null) {
+            ResponseEntity.ok(entity)
+        } else {
+            ResponseEntity.notFound().build()
+        }
+    }
 
+    @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-    fun findAll(...): Page<${entityName}Dto> { ... }
+    fun findAll(pageable: Pageable): ResponseEntity<Page<${dtoName}>> {
+        val page = ${serviceVarName}.findAll(pageable)
+        return ResponseEntity.ok(page)
+    }
 
     // Write operations - accessible only to users with ADMIN role
+    @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    fun create(...): ${entityName}Dto { ... }
+    fun create(@Valid @RequestBody ${entityVarName}DTO: ${dtoName}): ResponseEntity<${dtoName}> {
+        val result = ${serviceVarName}.save(${entityVarName}DTO)
+        return ResponseEntity.ok(result)
+    }
 
+    @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    fun update(...): ${entityName}Dto { ... }
+    fun update(
+        @PathVariable id: ${idType!"Long"},
+        @Valid @RequestBody ${entityVarName}DTO: ${dtoName}
+    ): ResponseEntity<${dtoName}> {
+        ${entityVarName}DTO.id = id
+        val result = ${serviceVarName}.update(${entityVarName}DTO)
+        return ResponseEntity.ok(result)
+    }
 
+    @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    fun delete(...) { ... }
+    fun delete(@PathVariable id: ${idType!"Long"}): ResponseEntity<Void> {
+        ${serviceVarName}.delete(id)
+        return ResponseEntity.noContent().build()
+    }
+
+    // Special operations with custom security rules
+    @GetMapping("/public")
+    @PreAuthorize("permitAll()")
+    fun getPublicData(): ResponseEntity<List<${dtoName}>> {
+        // This endpoint is accessible to everyone
+        val publicData = ${serviceVarName}.findPublicData()
+        return ResponseEntity.ok(publicData)
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('MODERATOR')")
+    fun approve(@PathVariable id: ${idType!"Long"}): ResponseEntity<${dtoName}> {
+        val result = ${serviceVarName}.approve(id)
+        return ResponseEntity.ok(result)
+    }
+
+    // Method-level security with SpEL expressions
+    @GetMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
+    fun findByUserId(@PathVariable userId: Long): ResponseEntity<List<${dtoName}>> {
+        // Users can only access their own data, admins can access all
+        val entities = ${serviceVarName}.findByUserId(userId)
+        return ResponseEntity.ok(entities)
+    }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

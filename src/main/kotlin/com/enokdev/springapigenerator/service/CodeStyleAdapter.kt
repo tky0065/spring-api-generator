@@ -17,6 +17,9 @@ class CodeStyleAdapter(private val styleConfig: CodeStyleConfig) {
         adaptedCode = adaptBracketStyle(adaptedCode)
         adaptedCode = adaptNamingConventions(adaptedCode)
         adaptedCode = adaptCommentStyle(adaptedCode)
+        adaptedCode = adaptAnnotations(adaptedCode)
+        adaptedCode = adaptLambdaExpressions(adaptedCode)
+        adaptedCode = adaptImportsAndPackages(adaptedCode)
 
         return adaptedCode
     }
@@ -166,5 +169,166 @@ class CodeStyleAdapter(private val styleConfig: CodeStyleConfig) {
 
     private fun camelToSnakeCase(camelCase: String): String {
         return camelCase.replace(Regex("([a-z])([A-Z])"), "$1_$2").lowercase()
+    }
+    
+    /**
+     * Adapts annotations according to the detected style.
+     * Handles annotation placement, line breaks, and formatting.
+     */
+    private fun adaptAnnotations(code: String): String {
+        // Handle annotation placement based on style
+        var adaptedCode = code
+        
+        when (styleConfig.styleStandard) {
+            PredefinedCodeStyles.StyleStandard.GOOGLE -> {
+                // Google style: annotations on same line for simple cases, separate lines for multiple
+                adaptedCode = adaptedCode.replace(
+                    Regex("@([A-Za-z0-9_]+)\\s*\\n\\s*@([A-Za-z0-9_]+)\\s*\\n\\s*([A-Za-z0-9_<>]+)"),
+                    "@$1 @$2 $3"
+                )
+            }
+            PredefinedCodeStyles.StyleStandard.KOTLIN_OFFICIAL -> {
+                // Kotlin style: annotations on separate lines
+                adaptedCode = adaptedCode.replace(
+                    Regex("@([A-Za-z0-9_]+)\\s+@([A-Za-z0-9_]+)\\s+([A-Za-z0-9_<>]+)"),
+                    "@$1\n${getIndentation()}@$2\n${getIndentation()}$3"
+                )
+            }
+            else -> {
+                // Default behavior: no specific adaptation
+            }
+        }
+        
+        // Format annotation parameters according to style
+        if (styleConfig.bracketStyle == CodeStyleDetector.BracketStyle.NEXT_LINE) {
+            // For next-line bracket style, put annotation parameters on new lines for complex annotations
+            adaptedCode = adaptedCode.replace(
+                Regex("@([A-Za-z0-9_]+)\\(([^)]{40,})\\)"),
+                "@$1(\n${getIndentation(2)}$2\n${getIndentation()})"
+            )
+        }
+        
+        return adaptedCode
+    }
+    
+    /**
+     * Adapts lambda expressions according to the detected style.
+     * Handles lambda formatting, parameter placement, and arrow style.
+     */
+    private fun adaptLambdaExpressions(code: String): String {
+        var adaptedCode = code
+        
+        when (styleConfig.styleStandard) {
+            PredefinedCodeStyles.StyleStandard.KOTLIN_OFFICIAL -> {
+                // Kotlin style: space before and after arrow
+                adaptedCode = adaptedCode.replace(
+                    Regex("\\{\\s*([a-zA-Z0-9_]+)\\s*->"),
+                    "{ $1 ->"
+                )
+                
+                // For multiline lambdas, put arrow on its own line
+                adaptedCode = adaptedCode.replace(
+                    Regex("\\{\\s*([a-zA-Z0-9_]+(?:,\\s*[a-zA-Z0-9_]+){2,})\\s*->"),
+                    "{\n${getIndentation()}$1\n${getIndentation()}->"
+                )
+            }
+            PredefinedCodeStyles.StyleStandard.GOOGLE -> {
+                // Google style: compact lambdas for simple cases
+                adaptedCode = adaptedCode.replace(
+                    Regex("\\{\\s*([a-zA-Z0-9_]+)\\s*->\\s*([^\\n}{]{1,30})\\s*}"),
+                    "{ $1 -> $2 }"
+                )
+            }
+            else -> {
+                // Default behavior: ensure consistent spacing
+                adaptedCode = adaptedCode.replace(
+                    Regex("\\{([a-zA-Z0-9_]+)->"),
+                    "{ $1 ->"
+                )
+            }
+        }
+        
+        return adaptedCode
+    }
+    
+    /**
+     * Adapts imports and package declarations according to the detected style.
+     * Handles import ordering, grouping, and formatting.
+     */
+    private fun adaptImportsAndPackages(code: String): String {
+        var adaptedCode = code
+        
+        // Extract imports
+        val importPattern = Regex("import\\s+([^;\\n]+)[;\\n]")
+        val imports = importPattern.findAll(adaptedCode).map { it.groupValues[1].trim() }.toList()
+        
+        if (imports.isEmpty()) {
+            return adaptedCode
+        }
+        
+        // Sort and group imports according to style
+        val sortedImports = when (styleConfig.styleStandard) {
+            PredefinedCodeStyles.StyleStandard.GOOGLE -> {
+                // Google style: alphabetical order with groups
+                val javaImports = imports.filter { it.startsWith("java.") }.sorted()
+                val androidImports = imports.filter { it.startsWith("android.") }.sorted()
+                val thirdPartyImports = imports.filter { 
+                    !it.startsWith("java.") && 
+                    !it.startsWith("android.") && 
+                    !it.startsWith("com.enokdev.") 
+                }.sorted()
+                val projectImports = imports.filter { it.startsWith("com.enokdev.") }.sorted()
+                
+                val result = mutableListOf<String>()
+                if (javaImports.isNotEmpty()) {
+                    result.addAll(javaImports)
+                    result.add("") // Empty line between groups
+                }
+                if (androidImports.isNotEmpty()) {
+                    result.addAll(androidImports)
+                    result.add("")
+                }
+                if (thirdPartyImports.isNotEmpty()) {
+                    result.addAll(thirdPartyImports)
+                    result.add("")
+                }
+                if (projectImports.isNotEmpty()) {
+                    result.addAll(projectImports)
+                }
+                result
+            }
+            PredefinedCodeStyles.StyleStandard.KOTLIN_OFFICIAL -> {
+                // Kotlin style: alphabetical order without wildcards
+                imports.sorted()
+            }
+            else -> {
+                // Default: simple alphabetical order
+                imports.sorted()
+            }
+        }
+        
+        // Replace imports in the code
+        val importSection = sortedImports.joinToString("\n") { 
+            if (it.isEmpty()) "" else "import $it;"
+        }
+        
+        // Replace the import section
+        val packagePattern = Regex("package\\s+[^;\\n]+[;\\n]\\s*")
+        val packageMatch = packagePattern.find(adaptedCode)
+        
+        if (packageMatch != null) {
+            val packageDeclaration = packageMatch.value
+            val oldImportSection = adaptedCode.substring(
+                packageMatch.range.last + 1, 
+                adaptedCode.indexOf("class ").takeIf { it > 0 } ?: adaptedCode.indexOf("interface ").takeIf { it > 0 } ?: packageMatch.range.last + 100
+            ).trim()
+            
+            adaptedCode = adaptedCode.replace(
+                "$packageDeclaration$oldImportSection", 
+                "$packageDeclaration\n$importSection\n\n"
+            )
+        }
+        
+        return adaptedCode
     }
 }

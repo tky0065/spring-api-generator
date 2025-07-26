@@ -1,4 +1,4 @@
-package ${packageName}
+package ${packageName!"${basePackage}.config.security"}
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletException
@@ -16,34 +16,35 @@ import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.filter.OncePerRequestFilter
 import java.io.IOException
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Spring Security configuration.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-class SecurityConfig(private val jwtUtil: JwtUtil) {
+class ${className!"SecurityConfig"}(private val jwtUtil: JwtUtil) {
 
     @Bean
     fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
-        http
+        return http
             .csrf { it.disable() }
-            .authorizeHttpRequests { authorize ->
-                authorize
-                    // Public endpoints
-                    .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                    // Secure all other endpoints
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .authorizeHttpRequests { auth ->
+                auth
+                    .requestMatchers("/api/auth/**").permitAll()
+                    .requestMatchers("/swagger-ui/**").permitAll()
+                    .requestMatchers("/v3/api-docs/**").permitAll()
+                    .requestMatchers("/api/${entityApiPath!"entities"}/**").authenticated()
                     .anyRequest().authenticated()
             }
-            .sessionManagement { session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            }
-            .addFilterBefore(JwtAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter::class.java)
-
-        return http.build()
+            .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter::class.java)
+            .build()
     }
 
     @Bean
@@ -51,10 +52,15 @@ class SecurityConfig(private val jwtUtil: JwtUtil) {
         return BCryptPasswordEncoder()
     }
 
+    @Bean
+    fun jwtAuthenticationFilter(): JwtAuthenticationFilter {
+        return JwtAuthenticationFilter(jwtUtil)
+    }
+
     /**
-     * JWT Authentication filter class
+     * JWT Authentication Filter for processing JWT tokens.
      */
-    private class JwtAuthenticationFilter(private val jwtUtil: JwtUtil) : OncePerRequestFilter() {
+    class JwtAuthenticationFilter(private val jwtUtil: JwtUtil) : OncePerRequestFilter() {
 
         @Throws(ServletException::class, IOException::class)
         override fun doFilterInternal(
@@ -62,25 +68,24 @@ class SecurityConfig(private val jwtUtil: JwtUtil) {
             response: HttpServletResponse,
             filterChain: FilterChain
         ) {
-            val authHeader = request.getHeader("Authorization")
-
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                val jwt = authHeader.substring(7)
-                val username = jwtUtil.extractUsername(jwt)
-
-                if (username != null && SecurityContextHolder.getContext().authentication == null) {
-                    val userDetails = userDetailsService.loadUserByUsername(username)
-
-                    if (jwtUtil.validateToken(jwt, userDetails)) {
-                        val authToken = UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.authorities
-                        )
-                        authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
-                        SecurityContextHolder.getContext().authentication = authToken
-                    }
-                }
+            val token = extractTokenFromRequest(request)
+            if (token != null && jwtUtil.validateToken(token)) {
+                val username = jwtUtil.getUsernameFromToken(token)
+                // Set authentication in SecurityContext
+                // Implementation depends on your UserDetailsService
             }
             filterChain.doFilter(request, response)
         }
+
+        private fun extractTokenFromRequest(request: HttpServletRequest): String? {
+            val authHeader = request.getHeader("Authorization")
+            return if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                authHeader.substring(7)
+            } else null
+        }
     }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

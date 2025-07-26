@@ -9,7 +9,11 @@ import java.nio.file.Paths
 /**
  * Generator for MapStruct mapper interfaces.
  */
-class MapperGenerator : AbstractTemplateCodeGenerator("Mapper.java.ft") {
+class MapperGenerator : AbstractTemplateCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "Mapper.java.ft"
+    }
 
     override fun getTargetFilePath(
         project: Project,
@@ -30,14 +34,33 @@ class MapperGenerator : AbstractTemplateCodeGenerator("Mapper.java.ft") {
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
+        // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
+        model["mapperName"] = entityMetadata.mapperName
+        model["className"] = entityMetadata.className
+        model["entityName"] = entityMetadata.className
+        model["entityNameLower"] = entityMetadata.entityNameLower
+        model["dtoName"] = entityMetadata.dtoName
+        model["packageName"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
+
+        // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
+        model["entityVarName"] = entityMetadata.entityNameLower
+        model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
+        model["dtoVarName"] = "${entityMetadata.entityNameLower}DTO"
+
+        // ========== VARIABLES POUR LES API PATHS ==========
+        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
         // Add mapper-specific data
         val mappings = generateMappings(entityMetadata)
         val usesMappers = collectUsedMappers(entityMetadata)
         val additionalImports = generateAdditionalImports(entityMetadata)
+        val customMethods = generateCustomMethods(entityMetadata)
 
         model["mappings"] = mappings
         model["usesMappers"] = usesMappers
         model["additionalImports"] = additionalImports
+        model["imports"] = additionalImports
+        model["customMethods"] = customMethods
 
         return model
     }
@@ -120,5 +143,13 @@ class MapperGenerator : AbstractTemplateCodeGenerator("Mapper.java.ft") {
         }
 
         return imports.joinToString("\n")
+    }
+
+    /**
+     * Generate custom methods for the mapper.
+     */
+    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
+        // Return empty string for now, can be expanded later
+        return ""
     }
 }

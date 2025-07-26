@@ -19,8 +19,19 @@ data class EntityMetadata(
     val serviceImplName: String = "${className}ServiceImpl",
     val controllerName: String = "${className}Controller",
     val mapperName: String = "${className}Mapper",
-    val entityBasePackage: String = packageName.substringBeforeLast(".")
+    // Extract base package correctly from packageName
+    val entityBasePackage: String = when {
+        // Si le package se termine par .entity, on retire .entity
+        packageName.endsWith(".entity") -> packageName.substringBeforeLast(".entity")
+        // Si le package contient .entity., on prend tout avant .entity
+        packageName.contains(".entity.") -> packageName.substringBefore(".entity")
+        // Sinon, on prend le package tel quel (pour les entités pas dans .entity)
+        packageName.isNotEmpty() -> packageName
+        // Fallback si packageName est vide
+        else -> qualifiedClassName.substringBeforeLast(".").ifEmpty { "com.example" }
+    }
 ) {
+    // Generate packages using standard Spring Boot structure
     val domainPackage: String get() = "$entityBasePackage.entity"
     val dtoPackage: String get() = "$entityBasePackage.dto"
     val repositoryPackage: String get() = "$entityBasePackage.repository"

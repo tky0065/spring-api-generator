@@ -5,11 +5,11 @@ import com.enokdev.springapigenerator.service.ProjectTypeDetectionService
 import com.enokdev.springapigenerator.service.TemplateCustomizationService
 import com.enokdev.springapigenerator.service.CodeStyleDetector
 import com.enokdev.springapigenerator.service.CodeStyleAdapter
+import com.enokdev.springapigenerator.service.TemplateErrorHandler
+import com.enokdev.springapigenerator.service.TemplateCacheService
 import com.intellij.openapi.project.Project
 import freemarker.template.Configuration
-import freemarker.template.Template
 import freemarker.template.TemplateException
-import freemarker.template.TemplateExceptionHandler
 import java.io.File
 import java.io.StringWriter
 import java.nio.file.Paths
@@ -17,67 +17,216 @@ import java.nio.file.Paths
 /**
  * Abstract base class for template-based code generators.
  */
-abstract class AbstractTemplateCodeGenerator(
-    private val javaTemplateName: String
-) : CodeGenerator {
-
+abstract class AbstractTemplateCodeGenerator : CodeGenerator {
+    
     /**
-     * Get the Kotlin template name based on the Java template name.
+     * Get the appropriate template name for the project type.
+     * Subclasses can override this method to provide custom template selection logic.
      */
-    private fun getKotlinTemplateName(): String {
-        // Convert .java.ft to .kt.ft
-        return javaTemplateName.replace(".java.ft", ".kt.ft")
-    }
+    protected open fun getTemplateName(project: Project, forceLanguage: String? = null): String {
+        val baseTemplateName = getBaseTemplateName()
+        val shouldUseKotlin = when (forceLanguage?.lowercase()) {
+            "kotlin", "kt" -> true
+            "java" -> false
+            else -> isKotlinProject(project)
+        }
 
-    /**
-     * Get the appropriate template name based on the project type.
-     */
-    private fun getTemplateNameForProject(project: Project): String {
-        return if (ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
-            getKotlinTemplateName()
+        return if (shouldUseKotlin) {
+            baseTemplateName.replace(".java.ft", ".kt.ft")
         } else {
-            javaTemplateName
+            baseTemplateName
+        }
+    }
+    
+    /**
+     * Get the base template name (Java version).
+     * Subclasses must implement this method.
+     */
+    protected abstract fun getBaseTemplateName(): String
+
+    /**
+     * Check if the project is a Kotlin project.
+     */
+    protected fun isKotlinProject(project: Project): Boolean {
+        return ProjectTypeDetectionService.shouldGenerateKotlinCode(project)
+    }
+    
+    /**
+     * Get file extension based on project type or forced language.
+     */
+    protected fun getFileExtensionForProject(project: Project, forceLanguage: String? = null): String {
+        return when (forceLanguage?.lowercase()) {
+            "kotlin", "kt" -> "kt"
+            "java" -> "java"
+            else -> if (isKotlinProject(project)) "kt" else "java"
         }
     }
 
     /**
-     * Generate code using the template engine with automatic style adaptation and Kotlin support.
+     * Get source root directory based on project language.
+     */
+    protected fun getSourceRootDirForProject(project: Project, forceLanguage: String? = null): String {
+        val language = when (forceLanguage?.lowercase()) {
+            "kotlin", "kt" -> ProjectTypeDetectionService.ProjectLanguage.KOTLIN
+            "java" -> ProjectTypeDetectionService.ProjectLanguage.JAVA
+            else -> null
+        }
+        return ProjectTypeDetectionService.getSourceRootForLanguage(project, language)
+    }
+
+    /**
+     * Get test root directory based on project language.
+     */
+    protected fun getTestRootDirForProject(project: Project, forceLanguage: String? = null): String {
+        val language = when (forceLanguage?.lowercase()) {
+            "kotlin", "kt" -> ProjectTypeDetectionService.ProjectLanguage.KOTLIN
+            "java" -> ProjectTypeDetectionService.ProjectLanguage.JAVA
+            else -> null
+        }
+        return ProjectTypeDetectionService.getTestRootForLanguage(project, language)
+    }
+
+    /**
+     * Generate code using the template engine with automatic style adaptation and language support.
+     * Enhanced to support both Java and Kotlin with user preference override.
      */
     override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        val cfg = createFreemarkerConfig(project)
-        val templateName = getTemplateNameForProject(project)
-        val template = cfg.getTemplate(templateName)
-
-        // Detect project code style
-        val codeStyleDetector = CodeStyleDetector()
-        val styleConfig = codeStyleDetector.detectCodeStyle(project)
-        val styleAdapter = CodeStyleAdapter(styleConfig)
-
-        // Create enhanced data model with style information and Kotlin support
-        val dataModel = createDataModel(entityMetadata, packageConfig, styleAdapter)
-
-        // Add Kotlin-specific data
-        dataModel["isKotlinProject"] = ProjectTypeDetectionService.shouldGenerateKotlinCode(project)
-        dataModel["kotlinSupport"] = mapOf(
-            "nullSafety" to true,
-            "dataClasses" to true,
-            "extensionFunctions" to true,
-            "propertyAccess" to true
-        )
-
-        val writer = StringWriter()
-        try {
-            template.process(dataModel, writer)
-        } catch (e: TemplateException) {
-            throw RuntimeException("Error processing template: ${e.message}", e)
-        }
-
-        // Apply style adaptation to the generated code
-        val generatedCode = writer.toString()
-        return styleAdapter.adaptCode(generatedCode)
+        return generateWithLanguage(project, entityMetadata, packageConfig, null)
     }
 
+    /**
+     * Generate code with specific language override.
+     */
+    fun generateWithLanguage(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>,
+        forceLanguage: String? = null
+    ): String {
+        // Use progress indicator for better user experience
+        return com.intellij.openapi.progress.ProgressManager.getInstance().runProcessWithProgressSynchronously<String, Exception>(
+            {
+                val progressIndicator = com.intellij.openapi.progress.ProgressManager.getInstance().progressIndicator
+                val languageInfo = ProjectTypeDetectionService.getProjectLanguageInfo(project)
+                val targetLanguage = forceLanguage ?: if (languageInfo.primaryLanguage == ProjectTypeDetectionService.ProjectLanguage.KOTLIN) "kotlin" else "java"
 
+                progressIndicator?.text = "Generating ${targetLanguage.uppercase()} code for ${entityMetadata.className}"
+
+                // Get template cache service
+                val templateCacheService = TemplateCacheService.getInstance(project)
+                
+                // Get cached configuration or create a new one
+                progressIndicator?.text2 = "Preparing template configuration"
+                val configKey = "default_${project.locationHash}"
+                val cfg = templateCacheService.getConfiguration(configKey) { createFreemarkerConfig(project) }
+                
+                val templateName = getTemplateName(project, forceLanguage)
+
+                // Get the template from cache with better error handling
+                progressIndicator?.text2 = "Loading template: $templateName"
+                progressIndicator?.fraction = 0.2
+                val template = try {
+                    templateCacheService.getTemplate(cfg, templateName)
+                } catch (e: Exception) {
+                    val errorMsg = "Failed to load template '$templateName': ${e.message}"
+                    com.intellij.openapi.diagnostic.Logger.getInstance(javaClass).error(errorMsg, e)
+                    throw RuntimeException(errorMsg, e)
+                }
+        
+                // Detect project code style
+                progressIndicator?.text2 = "Detecting code style"
+                progressIndicator?.fraction = 0.4
+                val codeStyleDetector = CodeStyleDetector()
+                val styleConfig = codeStyleDetector.detectCodeStyle(project)
+                val styleAdapter = CodeStyleAdapter(styleConfig)
+        
+                // Create enhanced data model with style information and language support
+                progressIndicator?.text2 = "Creating data model"
+                progressIndicator?.fraction = 0.6
+                val dataModel = createDataModel(entityMetadata, packageConfig, styleAdapter)
+        
+                // Add language-specific data
+                val isKotlinGeneration = forceLanguage?.lowercase() == "kotlin" ||
+                    (forceLanguage == null && ProjectTypeDetectionService.shouldGenerateKotlinCode(project))
+
+                dataModel["isKotlinProject"] = isKotlinGeneration
+                dataModel["isJavaProject"] = !isKotlinGeneration
+                dataModel["targetLanguage"] = if (isKotlinGeneration) "kotlin" else "java"
+                dataModel["projectLanguageInfo"] = languageInfo
+                dataModel["isMixedProject"] = languageInfo.isMixed
+
+                dataModel["kotlinSupport"] = mapOf(
+                    "nullSafety" to isKotlinGeneration,
+                    "dataClasses" to isKotlinGeneration,
+                    "extensionFunctions" to isKotlinGeneration,
+                    "propertyAccess" to isKotlinGeneration,
+                    "coroutines" to isKotlinGeneration
+                )
+
+                // Add language-specific imports
+                dataModel["languageSpecificImports"] = generateLanguageSpecificImports(isKotlinGeneration, entityMetadata)
+
+                // Process the template
+                progressIndicator?.text2 = "Processing template"
+                progressIndicator?.fraction = 0.8
+                val writer = StringWriter()
+                try {
+                    template.process(dataModel, writer)
+                } catch (e: TemplateException) {
+                    // Create detailed error message using our custom error handler
+                    val detailedErrorMsg = TemplateErrorHandler.createDetailedErrorMessage(e, templateName)
+                    
+                    // Log the detailed error
+                    com.intellij.openapi.diagnostic.Logger.getInstance(javaClass).error(detailedErrorMsg, e)
+                    
+                    // Provide a more helpful error message to the user
+                    throw RuntimeException(
+                        """
+                        |Template processing error in '$templateName':
+                        |${e.message}
+                        |
+                        |Please check the IDE log for more details.
+                        |If this is a custom template, verify the template syntax.
+                        """.trimMargin(), e)
+                }
+        
+                // Apply style adaptation to the generated code
+                progressIndicator?.text2 = "Adapting code style"
+                progressIndicator?.fraction = 0.95
+                val generatedCode = writer.toString()
+                val adaptedCode = styleAdapter.adaptCode(generatedCode)
+                
+                // Return the adapted code
+                adaptedCode
+            },
+            "Generating Spring Boot Code",
+            true,
+            project
+        )
+    }
+
+    /**
+     * Generate imports specific to the target language.
+     */
+    private fun generateLanguageSpecificImports(isKotlin: Boolean, entityMetadata: EntityMetadata): List<String> {
+        val imports = mutableListOf<String>()
+
+        if (isKotlin) {
+            // Kotlin-specific imports
+            imports.addAll(listOf(
+                "import kotlin.jvm.JvmStatic",
+                "import kotlin.collections.*"
+            ))
+        } else {
+            // Java-specific imports
+            imports.addAll(listOf(
+                "import java.util.*;",
+                "import java.util.stream.*;"
+            ))
+        }
+
+        return imports
+    }
 
     /**
      * Create the data model for the template.
@@ -171,22 +320,14 @@ abstract class AbstractTemplateCodeGenerator(
         }
 
         cfg.defaultEncoding = "UTF-8"
-        cfg.templateExceptionHandler = TemplateExceptionHandler.RETHROW_HANDLER
-        cfg.logTemplateExceptions = false
+        
+        // Use enhanced template error handler for better error reporting and graceful fallbacks
+        cfg.templateExceptionHandler = TemplateErrorHandler()
+        
+        cfg.logTemplateExceptions = true
         cfg.wrapUncheckedExceptions = true
         cfg.fallbackOnNullLoopVariable = false
         return cfg
-    }
-
-    /**
-     * Get the appropriate file extension (.java or .kt) based on the project type.
-     */
-    protected fun getFileExtensionForProject(project: Project): String {
-        return if (ProjectTypeDetectionService.shouldGenerateKotlinCode(project)) {
-            "kt"
-        } else {
-            "java"
-        }
     }
 
     /**

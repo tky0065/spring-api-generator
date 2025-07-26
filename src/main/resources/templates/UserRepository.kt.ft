@@ -1,17 +1,21 @@
-package ${packageName}
+package ${packageName!"${basePackage}.repository"}
 
-import ${packageName?keep_before_last(".")}.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.util.Optional
+<#if imports??>
+${imports}
+</#if>
 
 /**
- * Repository for [User] entity.
+ * Repository for [${className!"User"}] entity.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Repository
-interface UserRepository : JpaRepository<User, Long> {
+interface ${className!"UserRepository"} : JpaRepository<${entityName!"User"}, Long> {
 
     /**
      * Find a user by username.
@@ -19,7 +23,7 @@ interface UserRepository : JpaRepository<User, Long> {
      * @param username the username to search for
      * @return the user if found
      */
-    fun findByUsername(username: String): Optional<User>
+    fun findByUsername(username: String): Optional<${entityName!"User"}>
 
     /**
      * Find a user by email.
@@ -27,21 +31,57 @@ interface UserRepository : JpaRepository<User, Long> {
      * @param email the email to search for
      * @return the user if found
      */
-    fun findByEmail(email: String): Optional<User>
+    fun findByEmail(email: String): Optional<${entityName!"User"}>
 
     /**
-     * Check if a username already exists.
+     * Check if a user exists by username.
      *
      * @param username the username to check
-     * @return true if the username exists
+     * @return true if user exists
      */
     fun existsByUsername(username: String): Boolean
 
     /**
-     * Check if an email already exists.
+     * Check if a user exists by email.
      *
      * @param email the email to check
-     * @return true if the email exists
+     * @return true if user exists
      */
     fun existsByEmail(email: String): Boolean
+
+    /**
+     * Find all enabled users.
+     *
+     * @return list of enabled users
+     */
+    fun findByEnabledTrue(): List<${entityName!"User"}>
+
+    /**
+     * Find users by role.
+     *
+     * @param role the role to filter by
+     * @return list of users with the specified role
+     */
+    fun findByRole(role: ${entityName!"User"}.Role): List<${entityName!"User"}>
+
+    /**
+     * Find users by username containing the given text (case insensitive).
+     *
+     * @param username the username text to search for
+     * @return list of matching users
+     */
+    fun findByUsernameContainingIgnoreCase(username: String): List<${entityName!"User"}>
+
+    /**
+     * Custom query to find users by email domain.
+     *
+     * @param domain the email domain to search for
+     * @return list of users with the specified email domain
+     */
+    @Query("SELECT u FROM #{#entityName} u WHERE u.email LIKE %:domain")
+    fun findByEmailDomain(@Param("domain") domain: String): List<${entityName!"User"}>
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

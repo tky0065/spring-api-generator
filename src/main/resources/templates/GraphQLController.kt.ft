@@ -1,147 +1,134 @@
-package ${packageName}.controller
+package ${packageName!"${basePackage}.graphql"}
 
-import ${packageName}.entity.${className}
-import ${packageName}.dto.${className}DTO
-import ${packageName}.service.${className}Service
-import ${packageName}.mapper.${className}Mapper
 import org.springframework.graphql.data.method.annotation.Argument
 import org.springframework.graphql.data.method.annotation.QueryMapping
 import org.springframework.graphql.data.method.annotation.MutationMapping
 import org.springframework.stereotype.Controller
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.PageRequest
+<#if imports??>
+${imports}
+</#if>
 
 /**
- * GraphQL Controller for ${className} entity.
+ * GraphQL Controller for ${entityName} entity.
  * Contains both Query and Mutation resolvers.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Controller
-class ${className}GraphQLController(
-    private val ${entityNameLower}Service: ${className}Service,
-    private val ${entityNameLower}Mapper: ${className}Mapper
+class ${className!"${entityName}GraphQLController"}(
+    private val ${serviceVarName}: ${serviceName},
+    private val ${mapperVarName}: ${mapperName}
 ) {
 
     //---------- QUERIES ----------//
 
     /**
-     * Get a ${className} by ID
+     * Get a ${entityName} by ID
      *
-     * @param id The ID of the ${className}
-     * @return The ${className} if found, null otherwise
+     * @param id The ID of the ${entityName}
+     * @return The ${entityName} DTO or null if not found
      */
     @QueryMapping
-    fun get${className}(@Argument id: ${idType}): ${className}? {
-        return try {
-            val dto = ${entityNameLower}Service.findOne(id)
-            ${entityNameLower}Mapper.toEntity(dto)
-        } catch (e: RuntimeException) {
-            null
-        }
+    fun ${entityVarName}ById(@Argument id: ${idType!"Long"}): ${dtoName}? {
+        return ${serviceVarName}.findOne(id)
     }
 
     /**
-     * Get all ${className}s with pagination
+     * Get all ${entityName}s with pagination
      *
-     * @param page The page number (zero-based)
-     * @param size The page size
-     * @return A list of ${className}s
+     * @param page Page number (default: 0)
+     * @param size Page size (default: 20)
+     * @return List of ${entityName} DTOs
      */
     @QueryMapping
-    fun getAll${className}s(@Argument page: Int?, @Argument size: Int?): List<${className}> {
-        // Since our service doesn't support pagination directly, we'll need to handle it manually
-        val allDtos = ${entityNameLower}Service.findAll()
-
-        // Apply manual pagination
-        val pageVal = page ?: 0
-        val sizeVal = size ?: 10
-        val startIndex = pageVal * sizeVal
-        val endIndex = minOf(startIndex + sizeVal, allDtos.size)
-
-        // If startIndex is beyond list size, return empty list
-        return if (startIndex >= allDtos.size) {
-            emptyList()
-        } else {
-            allDtos.subList(startIndex, endIndex)
-                .map { ${entityNameLower}Mapper.toEntity(it) }
-        }
+    fun all${entityName}s(
+        @Argument page: Int = 0,
+        @Argument size: Int = 20
+    ): List<${dtoName}> {
+        val pageable = PageRequest.of(page, size)
+        return ${serviceVarName}.findAll(pageable).content
     }
 
     //---------- MUTATIONS ----------//
 
     /**
-     * Create a new ${className}
+     * Create a new ${entityName}
      *
-     * @param input The ${className} data
-     * @return The created ${className}
+     * @param input The ${entityName} input data
+     * @return The created ${entityName} DTO
      */
     @MutationMapping
-    fun create${className}(@Argument input: ${className}Input): ${className} {
-        val dto = ${className}DTO().apply {
-            // Map input fields to DTO
-            <#list fields as field>
-            <#if field.name != "id">
-            this.${field.name} = input.${field.name}
-            </#if>
-            </#list>
-        }
-
-        val savedDto = ${entityNameLower}Service.save(dto)
-        return ${entityNameLower}Mapper.toEntity(savedDto)
+    fun create${entityName}(@Argument input: ${entityName}Input): ${dtoName} {
+        val ${entityVarName}DTO = input.toDTO()
+        return ${serviceVarName}.save(${entityVarName}DTO)
     }
 
     /**
-     * Update an existing ${className}
+     * Update an existing ${entityName}
      *
-     * @param id The ID of the ${className} to update
-     * @param input The updated ${className} data
-     * @return The updated ${className}
+     * @param id The ID of the ${entityName} to update
+     * @param input The updated ${entityName} data
+     * @return The updated ${entityName} DTO
      */
     @MutationMapping
-    fun update${className}(@Argument id: ${idType}, @Argument input: ${className}Input): ${className}? {
-        try {
-            // First fetch the existing entity
-            val existingDto = ${entityNameLower}Service.findOne(id)
-
-            // Update fields from input
-            <#list fields as field>
-            <#if field.name != "id">
-            existingDto.${field.name} = input.${field.name}
-            </#if>
-            </#list>
-
-            val updatedDto = ${entityNameLower}Service.update(existingDto)
-            return ${entityNameLower}Mapper.toEntity(updatedDto)
-        } catch (e: RuntimeException) {
-            return null
-        }
+    fun update${entityName}(
+        @Argument id: ${idType!"Long"},
+        @Argument input: ${entityName}Input
+    ): ${dtoName} {
+        val ${entityVarName}DTO = input.toDTO().apply { this.id = id }
+        return ${serviceVarName}.update(${entityVarName}DTO)
     }
 
     /**
-     * Delete a ${className}
+     * Delete a ${entityName} by ID
      *
-     * @param id The ID of the ${className} to delete
-     * @return True if deleted, false otherwise
+     * @param id The ID of the ${entityName} to delete
+     * @return true if deleted successfully
      */
     @MutationMapping
-    fun delete${className}(@Argument id: ${idType}): Boolean {
+    fun delete${entityName}(@Argument id: ${idType!"Long"}): Boolean {
         return try {
-            ${entityNameLower}Service.delete(id)
+            ${serviceVarName}.delete(id)
             true
-        } catch (e: RuntimeException) {
+        } catch (e: Exception) {
             false
         }
     }
 
     /**
-     * Input type for ${className} mutations
+     * Input class for ${entityName} creation and updates
      */
-    data class ${className}Input(
-        <#list fields as field>
-        <#if field.name != "id">
-        val ${field.name}: ${field.simpleTypeName}<#if field.nullable>?</#if><#if field_has_next>,</#if>
-        </#if>
-        </#list>
-    )
+    data class ${entityName}Input(
+<#if fields??>
+<#list fields as field>
+<#if field.name != "id">
+        val ${field.name}: ${field.type}<#if field.nullable>?</#if><#if field_has_next>,</#if>
+</#if>
+</#list>
+<#else>
+        val name: String? = null
+</#if>
+    ) {
+        fun toDTO(): ${dtoName} {
+            return ${dtoName}(
+<#if fields??>
+<#list fields as field>
+<#if field.name == "id">
+                id = null<#if field_has_next>,</#if>
+<#else>
+                ${field.name} = this.${field.name}<#if field_has_next>,</#if>
+</#if>
+</#list>
+<#else>
+                id = null,
+                name = this.name
+</#if>
+            )
+        }
+    }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

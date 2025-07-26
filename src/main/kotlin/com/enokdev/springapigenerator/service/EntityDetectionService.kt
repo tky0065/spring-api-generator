@@ -20,18 +20,30 @@ class EntityDetectionService(private val project: Project) {
      */
     fun isJpaEntity(psiClass: PsiClass): Boolean {
         // Check if the class has @Entity annotation
-        val hasEntityAnnotation = psiClass.annotations.any {
-            it.qualifiedName == "javax.persistence.Entity" || it.qualifiedName == "jakarta.persistence.Entity"
+        val hasEntityAnnotation = psiClass.annotations.any { annotation ->
+            val qualifiedName = annotation.qualifiedName
+            val shortName = annotation.nameReferenceElement?.referenceName
+            qualifiedName == "javax.persistence.Entity" ||
+                    qualifiedName == "jakarta.persistence.Entity" ||
+                    shortName == "Entity"
         }
 
         // Check if the class has @Id annotation on any field or getter
         val hasIdAnnotation = psiClass.allFields.any { field ->
-            field.annotations.any {
-                it.qualifiedName == "javax.persistence.Id" || it.qualifiedName == "jakarta.persistence.Id"
+            field.annotations.any { annotation ->
+                val qualifiedName = annotation.qualifiedName
+                val shortName = annotation.nameReferenceElement?.referenceName
+                qualifiedName == "javax.persistence.Id" ||
+                        qualifiedName == "jakarta.persistence.Id" ||
+                        shortName == "Id"
             }
         } || psiClass.allMethods.any { method ->
-            method.name.startsWith("get") && method.annotations.any {
-                it.qualifiedName == "javax.persistence.Id" || it.qualifiedName == "jakarta.persistence.Id"
+            method.name.startsWith("get") && method.annotations.any { annotation ->
+                val qualifiedName = annotation.qualifiedName
+                val shortName = annotation.nameReferenceElement?.referenceName
+                qualifiedName == "javax.persistence.Id" ||
+                        qualifiedName == "jakarta.persistence.Id" ||
+                        shortName == "Id"
             }
         }
 

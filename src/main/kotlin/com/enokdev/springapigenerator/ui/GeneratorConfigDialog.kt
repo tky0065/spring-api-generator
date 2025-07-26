@@ -1,24 +1,21 @@
 package com.enokdev.springapigenerator.ui
 
 import com.enokdev.springapigenerator.model.EntityMetadata
-import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.ValidationInfo
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.UI
+import com.intellij.util.ui.UIUtil
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
-import javax.swing.*
 import java.io.File
 import java.nio.file.Paths
+import javax.swing.*
 
 /**
  * Dialog for configuring code generation options.
@@ -41,6 +38,20 @@ class GeneratorConfigDialog(
     private val configureSecurityButton = JButton("Configure Security")
     private val useGraphQLCheckbox = JBCheckBox("Add GraphQL Support", false)
     private val configureGraphQLButton = JButton("Configure GraphQL")
+
+    // ========== NOUVELLES FONCTIONNALITÉS AVANCÉES ==========
+    // Section pour afficher les fonctionnalités détectées automatiquement
+    private val detectionInfoLabel = JBLabel("<html><b>Automatically Detected Features:</b></html>")
+    private val detectedFeaturesArea = JTextArea(4, 50)
+    private val enableAdvancedFeaturesCheckbox = JBCheckBox("Enable automatic generation of advanced features", true)
+
+    // Migration de base de données
+    private val enableSchemaMigrationCheckbox = JBCheckBox("Generate schema migrations (Flyway/Liquibase)", true)
+    private val migrationInfoLabel = JBLabel()
+
+    // Fonctionnalités JPA avancées
+    private val enableAdvancedJpaCheckbox = JBCheckBox("Generate advanced JPA components", true)
+    private val jpaFeaturesInfoLabel = JBLabel()
 
     // Package configuration fields
     private val basePackageField = JBTextField(entityMetadata.entityBasePackage)
@@ -66,6 +77,9 @@ class GeneratorConfigDialog(
     init {
         title = "Generate Spring Boot Code"
         setOKButtonText("Generate")
+
+        // ========== DÉTECTION AUTOMATIQUE DES FONCTIONNALITÉS AVANCÉES ==========
+        detectAdvancedFeatures()
 
         // Add listener to mapper checkbox to enable/disable MapStruct checkbox
         mapperCheckbox.addChangeListener {
@@ -625,10 +639,11 @@ class GeneratorConfigDialog(
      */
     override fun createCenterPanel(): JComponent {
         val mainPanel = JPanel(BorderLayout())
-        mainPanel.preferredSize = Dimension(600, 400)
+        mainPanel.preferredSize = Dimension(700, 600) // Increased size for better display
 
         val tabbedPane = JTabbedPane()
         tabbedPane.add("Components", createComponentsPanel())
+        tabbedPane.add("Advanced Features", createAdvancedFeaturesPanel()) // New tab for advanced features
         tabbedPane.add("Packages", createPackagesPanel())
 
         // Entity information at the top
@@ -693,6 +708,56 @@ class GeneratorConfigDialog(
         panel.add(Box.createVerticalStrut(5))
         panel.add(useGraphQLCheckbox)
         panel.add(configureGraphQLButton)
+
+        return panel
+    }
+
+    /**
+     * Creates the advanced features panel.
+     */
+    private fun createAdvancedFeaturesPanel(): JComponent {
+        val panel = JPanel()
+        panel.layout = BoxLayout(panel, BoxLayout.Y_AXIS)
+        panel.border = JBUI.Borders.empty(10)
+
+        panel.add(JBLabel("Advanced Features Detection").apply {
+            font = font.deriveFont(font.style or java.awt.Font.BOLD)
+        })
+
+        panel.add(Box.createVerticalStrut(10))
+        panel.add(detectionInfoLabel)
+        panel.add(Box.createVerticalStrut(5))
+
+        // Configurer la zone de texte avec des couleurs appropriées du thème
+        val scrollPane = JScrollPane(detectedFeaturesArea.apply {
+            isEditable = false
+            lineWrap = true
+            wrapStyleWord = true
+            border = JBUI.Borders.empty(8)
+            background = UIUtil.getTextFieldBackground()
+            foreground = UIUtil.getTextFieldForeground()
+            font = UIUtil.getFont(UIUtil.FontSize.NORMAL, null)
+        })
+        scrollPane.border = JBUI.Borders.compound(
+            JBUI.Borders.customLine(UIUtil.getPanelBackground().darker()),
+            JBUI.Borders.empty(2)
+        )
+        scrollPane.preferredSize = Dimension(400, 80)
+        panel.add(scrollPane)
+
+        // Checkbox pour activer/désactiver les fonctionnalités avancées
+        panel.add(Box.createVerticalStrut(10))
+        panel.add(enableAdvancedFeaturesCheckbox)
+
+        // Migration de base de données
+        panel.add(Box.createVerticalStrut(10))
+        panel.add(enableSchemaMigrationCheckbox)
+        panel.add(migrationInfoLabel)
+
+        // Fonctionnalités JPA avancées
+        panel.add(Box.createVerticalStrut(10))
+        panel.add(enableAdvancedJpaCheckbox)
+        panel.add(jpaFeaturesInfoLabel)
 
         return panel
     }
@@ -773,5 +838,247 @@ class GeneratorConfigDialog(
      */
     fun getGraphQLOption(): Boolean {
         return useGraphQLCheckbox.isSelected
+    }
+
+    // ========== NOUVELLES MÉTHODES POUR LES FONCTIONNALITÉS AVANCÉES ==========
+
+    /**
+     * Automatically detects advanced features of the entity and project.
+     */
+    private fun detectAdvancedFeatures() {
+        val detectedFeatures = mutableListOf<String>()
+
+        // Detect project type
+        if (isKotlinProject()) {
+            detectedFeatures.add("Kotlin Project")
+        }
+
+        // Detect complex relationships
+        if (hasComplexRelationships()) {
+            detectedFeatures.add("Complex relationships (${getRelationshipTypes().joinToString(", ")})")
+        }
+
+        // Detect composite keys
+        if (needsCompositeKey()) {
+            detectedFeatures.add("Composite key detected")
+        }
+
+        // Detect embedded IDs
+        if (needsEmbeddedId()) {
+            detectedFeatures.add("Embedded ID (@EmbeddedId)")
+        }
+
+        // Detect custom validations
+        if (hasCustomValidations()) {
+            detectedFeatures.add("Custom validations")
+        }
+
+        // Detect audit fields
+        if (hasAuditingFields()) {
+            detectedFeatures.add("Audit fields (${getAuditFieldNames().joinToString(", ")})")
+        }
+
+        // Detect schema migrations
+        val migrationType = detectMigrationType()
+        if (migrationType != null) {
+            detectedFeatures.add("$migrationType migration configured")
+            migrationInfoLabel.text = "<html><font color='green'>✓ $migrationType detected in project</font></html>"
+        } else {
+            migrationInfoLabel.text = "<html><font color='orange'>⚠ No migration tool detected</font></html>"
+            enableSchemaMigrationCheckbox.isEnabled = false
+        }
+
+        // Update the interface
+        if (detectedFeatures.isNotEmpty()) {
+            detectedFeaturesArea.text = detectedFeatures.joinToString("\n• ", "• ")
+            // Utiliser les couleurs du thème IntelliJ pour la lisibilité
+            detectedFeaturesArea.background = UIUtil.getTextFieldBackground()
+            detectedFeaturesArea.foreground = UIUtil.getTextFieldForeground()
+
+            // Update JPA info
+            val jpaFeatures = detectedFeatures.filter {
+                it.contains("relationships") || it.contains("key") || it.contains("ID") || it.contains("validations") || it.contains("audit")
+            }
+            if (jpaFeatures.isNotEmpty()) {
+                jpaFeaturesInfoLabel.text = "<html><font color='green'>✓ ${jpaFeatures.size} advanced JPA feature(s) detected</font></html>"
+            }
+        } else {
+            detectedFeaturesArea.text = "No advanced features detected"
+            // Utiliser les couleurs du thème pour le cas "aucune fonctionnalité"
+            detectedFeaturesArea.background = UIUtil.getTextFieldBackground()
+            detectedFeaturesArea.foreground = UIUtil.getInactiveTextColor()
+            enableAdvancedFeaturesCheckbox.isEnabled = false
+            enableAdvancedJpaCheckbox.isEnabled = false
+        }
+    }
+
+    /**
+     * Détecte si le projet est un projet Kotlin.
+     */
+    private fun isKotlinProject(): Boolean {
+        val basePath = project.basePath ?: return false
+
+        // Vérifier les fichiers de build pour les plugins Kotlin
+        val buildFiles = listOf(
+            File("$basePath/build.gradle.kts"),
+            File("$basePath/build.gradle"),
+            File("$basePath/pom.xml")
+        )
+
+        return buildFiles.any { file ->
+            if (file.exists()) {
+                val content = file.readText()
+                content.contains("kotlin") || content.contains("org.jetbrains.kotlin")
+            } else false
+        }
+    }
+
+    /**
+     * Vérifie si l'entité a des relations complexes.
+     */
+    private fun hasComplexRelationships(): Boolean {
+        return entityMetadata.fields.any { field ->
+            field.relationType.name in listOf("MANY_TO_MANY", "ONE_TO_MANY", "ONE_TO_ONE", "MANY_TO_ONE")
+        }
+    }
+
+    /**
+     * Obtient les types de relations de l'entité.
+     */
+    private fun getRelationshipTypes(): List<String> {
+        return entityMetadata.fields
+            .filter { it.relationType.name != "NONE" }
+            .map { it.relationType.name }
+            .distinct()
+    }
+
+    /**
+     * Détermine si l'entité nécessite une clé composite.
+     */
+    private fun needsCompositeKey(): Boolean {
+        val idFields = entityMetadata.fields.filter { field ->
+            field.name == "id" ||
+            field.name.lowercase().contains("id") ||
+            field.columnName?.lowercase()?.contains("id") == true
+        }
+        return idFields.size > 1
+    }
+
+    /**
+     * Détermine si l'entité nécessite un ID embarqué.
+     */
+    private fun needsEmbeddedId(): Boolean {
+        return entityMetadata.fields.any { field ->
+            field.type.contains("Embedded") ||
+            field.name.lowercase().contains("embedded")
+        }
+    }
+
+    /**
+     * Vérifie si l'entité a des validations personnalisées.
+     */
+    private fun hasCustomValidations(): Boolean {
+        return entityMetadata.fields.any { field ->
+            field.type.contains("Pattern") ||
+            field.type.contains("Email") ||
+            field.type.contains("Past") ||
+            field.type.contains("Future") ||
+            field.type.contains("Valid")
+        }
+    }
+
+    /**
+     * Vérifie si l'entité a des champs d'audit.
+     */
+    private fun hasAuditingFields(): Boolean {
+        val auditFieldNames = setOf(
+            "createdDate", "createdAt", "dateCreated", "created",
+            "lastModifiedDate", "lastModifiedAt", "dateModified", "modified", "updated",
+            "createdBy", "lastModifiedBy", "modifiedBy", "version"
+        )
+
+        return entityMetadata.fields.any { field ->
+            auditFieldNames.contains(field.name.lowercase()) ||
+            field.type.contains("LocalDateTime") ||
+            field.type.contains("Timestamp") ||
+            (field.type.contains("Date") && field.name.lowercase().contains("creat")) ||
+            (field.type.contains("Date") && field.name.lowercase().contains("modif"))
+        }
+    }
+
+    /**
+     * Obtient les noms des champs d'audit détectés.
+     */
+    private fun getAuditFieldNames(): List<String> {
+        val auditFieldNames = setOf(
+            "createdDate", "createdAt", "dateCreated", "created",
+            "lastModifiedDate", "lastModifiedAt", "dateModified", "modified", "updated",
+            "createdBy", "lastModifiedBy", "modifiedBy", "version"
+        )
+
+        return entityMetadata.fields
+            .filter { field ->
+                auditFieldNames.contains(field.name.lowercase()) ||
+                field.type.contains("LocalDateTime") ||
+                field.type.contains("Timestamp") ||
+                (field.type.contains("Date") && field.name.lowercase().contains("creat")) ||
+                (field.type.contains("Date") && field.name.lowercase().contains("modif"))
+            }
+            .map { it.name }
+    }
+
+    /**
+     * Détecte le type de migration de schéma configuré dans le projet.
+     */
+    private fun detectMigrationType(): String? {
+        val basePath = project.basePath ?: return null
+
+        // Vérifier la présence de Flyway
+        val flywayDir = File("$basePath/src/main/resources/db/migration")
+        if (flywayDir.exists()) return "Flyway"
+
+        // Vérifier la présence de Liquibase
+        val liquibaseDir = File("$basePath/src/main/resources/db/changelog")
+        if (liquibaseDir.exists()) return "Liquibase"
+
+        // Vérifier dans les dépendances
+        val buildFiles = listOf(
+            File("$basePath/build.gradle.kts"),
+            File("$basePath/build.gradle"),
+            File("$basePath/pom.xml")
+        )
+
+        buildFiles.forEach { file ->
+            if (file.exists()) {
+                val content = file.readText()
+                when {
+                    content.contains("flyway") -> return "Flyway"
+                    content.contains("liquibase") -> return "Liquibase"
+                }
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Vérifie si les fonctionnalités avancées doivent être générées.
+     */
+    fun shouldGenerateAdvancedFeatures(): Boolean {
+        return enableAdvancedFeaturesCheckbox.isSelected
+    }
+
+    /**
+     * Vérifie si les migrations de schéma doivent être générées.
+     */
+    fun shouldGenerateSchemaMigration(): Boolean {
+        return enableSchemaMigrationCheckbox.isSelected && enableSchemaMigrationCheckbox.isEnabled
+    }
+
+    /**
+     * Vérifie si les composants JPA avancés doivent être générés.
+     */
+    fun shouldGenerateAdvancedJpa(): Boolean {
+        return enableAdvancedJpaCheckbox.isSelected && enableAdvancedJpaCheckbox.isEnabled
     }
 }

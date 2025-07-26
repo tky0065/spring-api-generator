@@ -1,4 +1,4 @@
-package ${packageName}
+package ${packageName!"${basePackage}.config.security"}
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.User
@@ -7,28 +7,40 @@ import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
+<#if imports??>
+${imports}
+</#if>
 
 /**
  * Custom implementation of UserDetailsService.
  * In a real application, this would load user data from a database.
  *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
+ * Generated on ${currentDate?datetime!"now"} by Spring API Generator Plugin.
  */
 @Service
-class CustomUserDetailsService(private val passwordEncoder: PasswordEncoder) : UserDetailsService {
+class ${className!"CustomUserDetailsService"}(private val passwordEncoder: PasswordEncoder) : UserDetailsService {
 
     private val users: MutableMap<String, UserDetails> = HashMap()
 
     init {
-        // Initialize with a test user - replace this with your user repository in a real application
+        // Initialize with test users - replace this with your user repository in a real application
         users["admin"] = createUser("admin", "admin", "ADMIN", "USER")
         users["user"] = createUser("user", "user", "USER")
+        users["moderator"] = createUser("moderator", "moderator", "MODERATOR", "USER")
     }
 
     override fun loadUserByUsername(username: String): UserDetails {
         return users[username] ?: throw UsernameNotFoundException("User not found: $username")
     }
 
+    /**
+     * Creates a UserDetails object with encoded password and authorities.
+     *
+     * @param username the username
+     * @param password the plain text password (will be encoded)
+     * @param roles the roles to assign to the user
+     * @return UserDetails object
+     */
     private fun createUser(username: String, password: String, vararg roles: String): UserDetails {
         return User(
             username,
@@ -36,4 +48,47 @@ class CustomUserDetailsService(private val passwordEncoder: PasswordEncoder) : U
             roles.map { SimpleGrantedAuthority("ROLE_$it") }
         )
     }
+
+    /**
+     * Add a new user programmatically.
+     *
+     * @param username the username
+     * @param password the plain text password
+     * @param roles the roles to assign
+     */
+    fun addUser(username: String, password: String, vararg roles: String) {
+        users[username] = createUser(username, password, *roles)
+    }
+
+    /**
+     * Check if a user exists.
+     *
+     * @param username the username to check
+     * @return true if user exists
+     */
+    fun userExists(username: String): Boolean {
+        return users.containsKey(username)
+    }
+
+    /**
+     * Remove a user.
+     *
+     * @param username the username to remove
+     */
+    fun removeUser(username: String) {
+        users.remove(username)
+    }
+
+    /**
+     * Get all usernames.
+     *
+     * @return set of all usernames
+     */
+    fun getAllUsernames(): Set<String> {
+        return users.keys.toSet()
+    }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

@@ -11,13 +11,14 @@ import java.nio.file.Paths
  * Enhanced entity generator with bidirectional relationship management.
  * Supports both Java and Kotlin code generation.
  */
-class EntityWithRelationshipsGenerator(
-    javaTemplateName: String = "EntityWithRelationships.java.ft",
-    private val kotlinTemplateName: String = "EntityWithRelationships.kt.ft"
-) : IncrementalCodeGenerator(javaTemplateName) {
+class EntityWithRelationshipsGenerator : IncrementalCodeGenerator() {
 
     private val relationshipAnalyzer = ComplexRelationshipAnalyzer()
     private val relationshipManager = BidirectionalRelationshipManager()
+
+    override fun getBaseTemplateName(): String {
+        return "EntityWithRelationships.java.ft"
+    }
 
     /**
      * Generate entity with relationships code with language detection
@@ -29,19 +30,11 @@ class EntityWithRelationshipsGenerator(
         project: Project,
         outputDir: File
     ): File {
-        val isKotlinProject = detectKotlinProject(project)
-
-        // Create a temporary generator with the appropriate template
-        val generator = if (isKotlinProject) {
-            EntityWithRelationshipsGenerator(kotlinTemplateName, kotlinTemplateName)
-        } else {
-            this
-        }
-
-        val generatedCode = generator.generate(project, entityMetadata, packageConfig)
+        val generatedCode = generate(project, entityMetadata, packageConfig)
 
         // Write to output file
-        val fileName = "${entityMetadata.className}.${if (isKotlinProject) "kt" else "java"}"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.className}.$extension"
         val outputFile = File(outputDir, fileName)
         outputFile.writeText(generatedCode)
 

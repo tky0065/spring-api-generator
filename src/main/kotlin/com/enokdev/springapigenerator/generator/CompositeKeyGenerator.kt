@@ -10,10 +10,11 @@ import java.nio.file.Paths
  * Generator for composite key classes.
  * Supports both Java and Kotlin code generation.
  */
-class CompositeKeyGenerator(
-    javaTemplateName: String = "CompositeKey.java.ft",
-    private val kotlinTemplateName: String = "CompositeKey.kt.ft"
-) : IncrementalCodeGenerator(javaTemplateName) {
+class CompositeKeyGenerator : IncrementalCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "CompositeKey.java.ft"
+    }
 
     /**
      * Generate composite key code with language detection
@@ -25,34 +26,15 @@ class CompositeKeyGenerator(
         project: Project,
         outputDir: File
     ): File {
-        val isKotlinProject = detectKotlinProject(project)
-
-        // Create a temporary generator with the appropriate template
-        val generator = if (isKotlinProject) {
-            CompositeKeyGenerator(kotlinTemplateName, kotlinTemplateName)
-        } else {
-            this
-        }
-
-        val generatedCode = generator.generate(project, entityMetadata, packageConfig)
+        val generatedCode = generate(project, entityMetadata, packageConfig)
 
         // Write to output file
-        val fileName = "${entityMetadata.className}Id.${if (isKotlinProject) "kt" else "java"}"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.className}Id.$extension"
         val outputFile = File(outputDir, fileName)
         outputFile.writeText(generatedCode)
 
         return outputFile
-    }
-
-    /**
-     * Detect if the project uses Kotlin
-     */
-    private fun detectKotlinProject(project: Project): Boolean {
-        val projectPath = project.basePath ?: return false
-        val kotlinFiles = File(projectPath).walkTopDown()
-            .filter { it.extension == "kt" }
-            .take(1)
-        return kotlinFiles.any()
     }
 
     override fun createDataModel(
@@ -69,7 +51,7 @@ class CompositeKeyGenerator(
         model["className"] = "${entityMetadata.className}Id"
         model["entityName"] = entityMetadata.className
         model["keyFields"] = keyFields
-        model["packageName"] = packageConfig["idPackage"] ?: "${entityMetadata.packageName}.id"
+        model["packageName"] = packageConfig["idPackage"] ?: "${entityMetadata.entityBasePackage}.id"
 
         return model
     }

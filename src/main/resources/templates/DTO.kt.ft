@@ -2,13 +2,28 @@ package ${packageName}
 
 import java.time.LocalDateTime
 import javax.validation.constraints.*
+<#if imports??>
 ${imports}
+</#if>
 
 /**
  * DTO for the ${entityName} entity
  */
 data class ${dtoName}(
-${fields}
+<#if dtoFields??>
+${dtoFields}
+<#elseif fields??>
+<#list fields as field>
+    <#if !field.nullable>@NotNull</#if>
+    val ${field.name}: ${field.type}<#if field.nullable>?</#if><#if field_has_next>,</#if>
+</#list>
+<#else>
+    val id: Long? = null
+</#if>
 ) {
+<#if customMethods?? && customMethods != "">
+${customMethods}
+<#else>
     // Custom methods can be added here
+</#if>
 }

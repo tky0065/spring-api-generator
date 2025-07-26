@@ -10,10 +10,11 @@ import java.nio.file.Paths
  * Generator for embedded ID classes.
  * Supports both Java and Kotlin code generation.
  */
-class EmbeddedIdGenerator(
-    javaTemplateName: String = "EmbeddedId.java.ft",
-    private val kotlinTemplateName: String = "EmbeddedId.kt.ft"
-) : IncrementalCodeGenerator(javaTemplateName) {
+class EmbeddedIdGenerator : IncrementalCodeGenerator() {
+
+    override fun getBaseTemplateName(): String {
+        return "EmbeddedId.java.ft"
+    }
 
     /**
      * Generate embedded ID code with language detection
@@ -25,34 +26,15 @@ class EmbeddedIdGenerator(
         project: Project,
         outputDir: File
     ): File {
-        val isKotlinProject = detectKotlinProject(project)
-
-        // Create a temporary generator with the appropriate template
-        val generator = if (isKotlinProject) {
-            EmbeddedIdGenerator(kotlinTemplateName, kotlinTemplateName)
-        } else {
-            this
-        }
-
-        val generatedCode = generator.generate(project, entityMetadata, packageConfig)
+        val generatedCode = generate(project, entityMetadata, packageConfig)
 
         // Write to output file
-        val fileName = "${entityMetadata.className}Id.${if (isKotlinProject) "kt" else "java"}"
+        val extension = getFileExtensionForProject(project)
+        val fileName = "${entityMetadata.className}Id.$extension"
         val outputFile = File(outputDir, fileName)
         outputFile.writeText(generatedCode)
 
         return outputFile
-    }
-
-    /**
-     * Detect if the project uses Kotlin
-     */
-    private fun detectKotlinProject(project: Project): Boolean {
-        val projectPath = project.basePath ?: return false
-        val kotlinFiles = File(projectPath).walkTopDown()
-            .filter { it.extension == "kt" }
-            .take(1)
-        return kotlinFiles.any()
     }
 
     override fun createDataModel(
