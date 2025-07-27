@@ -1,3 +1,4 @@
+<#if enableSecurity?? && enableSecurity>
 package ${packageName};
 
 import org.springframework.context.annotation.Bean;
@@ -13,8 +14,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 /**
  * Spring Security configuration.
- *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
  */
 @Configuration
 @EnableWebSecurity
@@ -91,3 +90,4 @@ public class SecurityConfig {
         }
     }
 }
+</#if>

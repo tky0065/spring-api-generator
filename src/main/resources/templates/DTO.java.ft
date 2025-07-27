@@ -1,24 +1,33 @@
-package ${packageName}.dto;
+package ${packageName};
 
 import java.io.Serializable;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-${importStatements}
+<#if hasValidationDependency?? && hasValidationDependency>
+import jakarta.validation.constraints.*;
+</#if>
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
+</#if>
 
 /**
- * A DTO for the {@link ${packageName}.entity.${entityName}} entity.
+ * A DTO for the {@link ${entityPackage}.${entityName}} entity.
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ${entityName}DTO implements Serializable {
+public class ${dtoName} implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-${fields}
-
-    // Lombok génère automatiquement les getters, setters, equals, hashCode et toString
+<#if javaFields?? && javaFields != "">
+${javaFields}
+<#else>
+    // No fields defined
+    @NotNull
+    private ${idType} id;
+</#if>
 }

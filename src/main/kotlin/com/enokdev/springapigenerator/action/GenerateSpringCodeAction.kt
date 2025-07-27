@@ -1,7 +1,7 @@
 package com.enokdev.springapigenerator.action
 
-import com.enokdev.springapigenerator.generator.impl.*
 import com.enokdev.springapigenerator.generator.*
+import com.enokdev.springapigenerator.generator.impl.*
 import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.service.*
 import com.enokdev.springapigenerator.ui.GeneratorConfigDialog
@@ -18,7 +18,6 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiJavaFile
 import java.io.File
-import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
@@ -199,9 +198,13 @@ class GenerateSpringCodeAction : AnAction() {
         val dialog = GeneratorConfigDialog(project, entityMetadata)
         if (dialog.showAndGet()) {
             val selectedComponents = dialog.getSelectedComponents()
-            val packageConfig = createPackageConfiguration(entityMetadata)
+            // FIX: Use the package configuration from the dialog instead of ignoring user input
+            val packageConfig = dialog.getPackageConfig()
 
-            generateCode(project, entityMetadata, selectedComponents, packageConfig, targetLanguage)
+            // Handle dependencies and advanced features
+            handleDependencies(project, dialog)
+
+            generateCode(project, entityMetadata, selectedComponents, packageConfig, targetLanguage, dialog)
         }
     }
 
@@ -228,22 +231,28 @@ class GenerateSpringCodeAction : AnAction() {
         entityMetadata: EntityMetadata,
         selectedComponents: Set<String>,
         packageConfig: Map<String, String>,
-        targetLanguage: String?
+        targetLanguage: String?,
+        dialog: GeneratorConfigDialog
     ) {
         WriteCommandAction.runWriteCommandAction(project) {
             try {
-                val generators = createGenerators(selectedComponents)
+                // Create enhanced package configuration with custom query methods setting
+                val enhancedPackageConfig = packageConfig.toMutableMap()
+                enhancedPackageConfig["generateCustomQueryMethods"] = dialog.shouldGenerateCustomQueryMethods().toString()
+
+                // Create generators based on selected components and dialog configuration
+                val generators = createGenerators(selectedComponents, dialog)
                 val generatedFiles = mutableListOf<String>()
 
                 for (generator in generators) {
                     try {
                         val code = if (generator is AbstractTemplateCodeGenerator && targetLanguage != null) {
-                            generator.generateWithLanguage(project, entityMetadata, packageConfig, targetLanguage)
+                            generator.generateWithLanguage(project, entityMetadata, enhancedPackageConfig, targetLanguage)
                         } else {
-                            generator.generate(project, entityMetadata, packageConfig)
+                            generator.generate(project, entityMetadata, enhancedPackageConfig)
                         }
 
-                        val targetPath = generator.getTargetFilePath(project, entityMetadata, packageConfig)
+                        val targetPath = generator.getTargetFilePath(project, entityMetadata, enhancedPackageConfig)
                         writeCodeToFile(targetPath, code)
                         generatedFiles.add(targetPath)
 
@@ -257,6 +266,9 @@ class GenerateSpringCodeAction : AnAction() {
                     }
                 }
 
+                // Generate advanced features if enabled
+                generateAdvancedFeatures(project, entityMetadata, enhancedPackageConfig, dialog, generatedFiles)
+
                 showSuccessMessage(project, generatedFiles, targetLanguage)
 
             } catch (e: Exception) {
@@ -266,28 +278,216 @@ class GenerateSpringCodeAction : AnAction() {
     }
 
     /**
-     * Creates generators based on selected components.
+     * Creates generators based on selected components and dialog configuration.
      */
-    private fun createGenerators(selectedComponents: Set<String>): List<CodeGenerator> {
+    private fun createGenerators(selectedComponents: Set<String>, dialog: GeneratorConfigDialog): List<CodeGenerator> {
         val generators = mutableListOf<CodeGenerator>()
 
         selectedComponents.forEach { component ->
             when (component.lowercase()) {
                 "controller" -> generators.add(ControllerGenerator())
-                "service" -> generators.add(ServiceGenerator())
-                "repository" -> generators.add(RepositoryGenerator())
+                "service" -> {
+                    // Add both service interface and implementation generators
+                    generators.add(ServiceGenerator())
+                    generators.add(ServiceImplGenerator())
+                }
+                "repository" -> {
+                    // Use custom query methods configuration from dialog
+                    val repositoryGenerator = RepositoryGenerator()
+                    generators.add(repositoryGenerator)
+                }
                 "dto" -> generators.add(DtoGenerator())
                 "mapper" -> generators.add(MapperGenerator())
                 "test" -> generators.add(TestGenerator())
-                "swaggerconfig" -> generators.add(SwaggerConfigGenerator())
-                "globalexceptionhandler" -> generators.add(GlobalExceptionHandlerGenerator())
-                "securityconfig" -> generators.add(SecurityConfigGenerator())
-                "graphql" -> generators.add(GraphQLGenerator())
-                "openapiconfig" -> generators.add(OpenApiConfigGenerator())
             }
         }
 
+        // Add additional generators based on dialog configuration
+        if (dialog.shouldAddSwagger()) {
+            generators.add(SwaggerConfigGenerator())
+        }
+
+        if (dialog.shouldAddSpringSecurity()) {
+            generators.add(SecurityConfigGenerator())
+            generators.add(GlobalExceptionHandlerGenerator())
+        }
+
+        if (dialog.shouldAddGraphQL()) {
+            generators.add(GraphQLGenerator())
+        }
+
+        if (dialog.shouldAddOpenApi()) {
+            generators.add(OpenApiConfigGenerator())
+        }
+
         return generators
+    }
+
+    /**
+     * Generates advanced features if enabled in the dialog.
+     */
+    private fun generateAdvancedFeatures(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>,
+        dialog: GeneratorConfigDialog,
+        generatedFiles: MutableList<String>
+    ) {
+        try {
+            // Generate schema migrations if enabled
+            if (dialog.shouldGenerateSchemaMigration()) {
+                val migrationGenerator = SchemaMigrationGenerator()
+                val migrationCode = migrationGenerator.generateEntityMigration(project, entityMetadata, packageConfig)
+
+                // Create migration file path
+                val migrationFileName = "V${System.currentTimeMillis()}_create_${entityMetadata.entityNameLower}_table.sql"
+                val migrationPath = Paths.get(
+                    getProjectResourcesDir(project),
+                    "db", "migration", migrationFileName
+                ).toString()
+
+                writeCodeToFile(migrationPath, migrationCode)
+                generatedFiles.add(migrationPath)
+            }
+
+            // Generate advanced JPA features if enabled
+            if (dialog.shouldGenerateAdvancedJpa()) {
+                generateAdvancedJpaFeatures(project, entityMetadata, packageConfig, generatedFiles)
+            }
+
+        } catch (e: Exception) {
+            Messages.showWarningDialog(
+                project,
+                "Some advanced features could not be generated: ${e.message}",
+                "Advanced Features Warning"
+            )
+        }
+    }
+
+    /**
+     * Generates advanced JPA features like composite keys and custom repositories.
+     */
+    private fun generateAdvancedJpaFeatures(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>,
+        generatedFiles: MutableList<String>
+    ) {
+        try {
+            val sourceRoot = getProjectSourceDir(project)
+            val basePackagePath = packageConfig["basePackage"]?.replace(".", "/") ?: ""
+
+            // Create a style adapter for the advanced generators
+            val codeStyleDetector = CodeStyleDetector()
+            val styleConfig = codeStyleDetector.detectCodeStyle(project)
+            val styleAdapter = CodeStyleAdapter(styleConfig)
+
+            // Check if entity has potential for composite key (multiple ID-like fields)
+            val hasMultipleKeys = entityMetadata.fields.count { field ->
+                field.name.lowercase().contains("id") ||
+                field.name.lowercase() == "key" ||
+                !field.nullable
+            } > 1
+
+            // Generate composite key if needed
+            if (hasMultipleKeys) {
+                val compositeKeyGenerator = CompositeKeyGenerator()
+                val outputDir = File(sourceRoot, basePackagePath + "/model")
+                outputDir.mkdirs()
+
+                val compositeKeyFile = compositeKeyGenerator.generateCompositeKey(
+                    entityMetadata, packageConfig, styleAdapter, project, outputDir
+                )
+                generatedFiles.add(compositeKeyFile.absolutePath)
+            }
+
+            // Check if entity has embedded-like fields (complex value objects)
+            val hasEmbeddedFields = entityMetadata.fields.any { field ->
+                !field.isSimpleType && field.relationType == com.enokdev.springapigenerator.model.RelationType.NONE
+            }
+
+            // Generate embedded ID if needed
+            if (hasEmbeddedFields) {
+                val embeddedIdGenerator = EmbeddedIdGenerator()
+                val outputDir = File(sourceRoot, basePackagePath + "/model")
+                outputDir.mkdirs()
+
+                val embeddedIdFile = embeddedIdGenerator.generateEmbeddedId(
+                    entityMetadata, packageConfig, styleAdapter, project, outputDir
+                )
+                generatedFiles.add(embeddedIdFile.absolutePath)
+            }
+
+            // Generate advanced JPA entity features using standard generator interface
+            try {
+                val advancedJpaGenerator = AdvancedJpaEntityGenerator()
+                val advancedJpaCode = advancedJpaGenerator.generate(project, entityMetadata, packageConfig)
+                val advancedJpaPath = Paths.get(
+                    sourceRoot,
+                    basePackagePath,
+                    "model", "${entityMetadata.className}Advanced.java"
+                ).toString()
+                writeCodeToFile(advancedJpaPath, advancedJpaCode)
+                generatedFiles.add(advancedJpaPath)
+            } catch (e: Exception) {
+                // Advanced JPA generator might not be available, skip silently
+            }
+
+            // Generate entity with relationships using standard generator interface
+            try {
+                val entityWithRelationshipsGenerator = EntityWithRelationshipsGenerator()
+                val entityRelationshipsCode = entityWithRelationshipsGenerator.generate(project, entityMetadata, packageConfig)
+                val entityRelationshipsPath = Paths.get(
+                    sourceRoot,
+                    basePackagePath,
+                    "model", "${entityMetadata.className}WithRelationships.java"
+                ).toString()
+                writeCodeToFile(entityRelationshipsPath, entityRelationshipsCode)
+                generatedFiles.add(entityRelationshipsPath)
+            } catch (e: Exception) {
+                // Entity with relationships generator might not be available, skip silently
+            }
+
+            // Check if entity has complex ID logic (non-simple ID type)
+            val hasComplexId = entityMetadata.fields.any { field ->
+                field.name.lowercase().contains("id") && !field.isSimpleType
+            }
+
+            // Generate custom ID repository if needed
+            if (hasComplexId) {
+                try {
+                    val customIdRepositoryGenerator = CustomIdRepositoryGenerator()
+                    val outputDir = File(sourceRoot, packageConfig["repositoryPackage"]?.replace(".", "/") ?: "")
+                    outputDir.mkdirs()
+
+                    val customIdRepositoryFile = customIdRepositoryGenerator.generateRepository(
+                        entityMetadata, packageConfig, styleAdapter, project, outputDir
+                    )
+                    generatedFiles.add(customIdRepositoryFile.absolutePath)
+                } catch (e: Exception) {
+                    // Custom ID repository generator might not be available, skip silently
+                }
+            }
+
+        } catch (e: Exception) {
+            throw RuntimeException("Failed to generate advanced JPA features: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Gets the project resources directory.
+     */
+    private fun getProjectResourcesDir(project: Project): String {
+        val projectPath = project.basePath ?: ""
+        return Paths.get(projectPath, "src", "main", "resources").toString()
+    }
+
+    /**
+     * Gets the project source directory.
+     */
+    private fun getProjectSourceDir(project: Project): String {
+        val projectPath = project.basePath ?: ""
+        return Paths.get(projectPath, "src", "main", "java").toString()
     }
 
     /**
@@ -296,7 +496,19 @@ class GenerateSpringCodeAction : AnAction() {
     private fun writeCodeToFile(filePath: String, code: String) {
         val file = File(filePath)
         file.parentFile?.mkdirs()
-        file.writeText(code)
+
+        // Corriger le code Java pour s'assurer que les classes ont le modificateur public
+        val correctedCode = if (filePath.endsWith(".java")) {
+            val className = file.nameWithoutExtension
+            JavaClassVisibilityFixer.fixSpringGeneratedClass(
+                JavaClassVisibilityFixer.ensurePublicClasses(code),
+                className
+            )
+        } else {
+            code
+        }
+
+        file.writeText(correctedCode)
 
         // Refresh the virtual file system
         LocalFileSystem.getInstance().refreshAndFindFileByPath(filePath)
@@ -364,6 +576,52 @@ class GenerateSpringCodeAction : AnAction() {
             "• All required dependencies are present\n" +
             "• The project structure is correct",
             "Generation Error"
+        )
+    }
+
+    /**
+     * Handles dependencies and advanced features based on dialog configuration.
+     */
+    private fun handleDependencies(project: Project, dialog: GeneratorConfigDialog) {
+        // Add MapStruct dependency if needed
+        if (dialog.shouldAddMapstruct()) {
+            val (buildSystem, dependency) = dialog.getMapstructDependencyInfo()
+            showDependencyInfo(project, "MapStruct", buildSystem, dependency)
+        }
+
+        // Add Swagger dependency if needed
+        if (dialog.shouldAddSwagger()) {
+            val (buildSystem, dependency) = dialog.getSwaggerDependencyInfo()
+            showDependencyInfo(project, "Swagger/OpenAPI", buildSystem, dependency)
+        }
+
+        // Add Spring Security dependency if needed
+        if (dialog.shouldAddSpringSecurity()) {
+            val (buildSystem, dependency) = dialog.getSpringSecurityDependencyInfo()
+            showDependencyInfo(project, "Spring Security", buildSystem, dependency)
+        }
+
+        // Add GraphQL dependency if needed
+        if (dialog.shouldAddGraphQL()) {
+            val (buildSystem, dependency) = dialog.getGraphQLDependencyInfo()
+            showDependencyInfo(project, "GraphQL", buildSystem, dependency)
+        }
+
+        // Add OpenAPI dependency if needed
+        if (dialog.shouldAddOpenApi()) {
+            val (buildSystem, dependency) = dialog.getOpenApiDependencyInfo()
+            showDependencyInfo(project, "OpenAPI 3.0", buildSystem, dependency)
+        }
+    }
+
+    /**
+     * Shows dependency information to the user.
+     */
+    private fun showDependencyInfo(project: Project, dependencyName: String, buildSystem: String, dependency: String) {
+        Messages.showInfoMessage(
+            project,
+            "Please add the following $dependencyName dependency to your $buildSystem build file:\n\n$dependency",
+            "Add $dependencyName Dependency"
         )
     }
 }

@@ -2,6 +2,7 @@ package com.enokdev.springapigenerator.generator.impl
 
 import com.enokdev.springapigenerator.generator.AbstractTemplateCodeGenerator
 import com.enokdev.springapigenerator.model.EntityMetadata
+import com.enokdev.springapigenerator.service.DependencyValidationService
 import com.intellij.openapi.project.Project
 import java.nio.file.Paths
 
@@ -11,7 +12,7 @@ import java.nio.file.Paths
 class ControllerGenerator : AbstractTemplateCodeGenerator() {
 
     override fun getBaseTemplateName(): String {
-        return "Controller.java.ft"
+        return "Controller"
     }
 
     override fun getTargetFilePath(
@@ -23,8 +24,24 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         val controllerPackage = packageConfig["controllerPackage"] ?: entityMetadata.controllerPackage
         val controllerDir = controllerPackage.replace(".", "/")
         val extension = getFileExtensionForProject(project)
-        val fileName = "${entityMetadata.controllerName}.$extension"
+        val fileName = "${entityMetadata.className}Controller.$extension"
         return Paths.get(sourceRoot, controllerDir, fileName).toString()
+    }
+
+    override fun generate(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>
+    ): String {
+        // Vérifier et ajouter les dépendances requises si nécessaire
+        val features = mapOf(
+            "swagger" to true,
+            "validation" to true
+        )
+        DependencyValidationService.validateAndEnsureDependencies(project, features)
+
+        // Appeler la méthode parent
+        return super.generate(project, entityMetadata, packageConfig)
     }
 
     override fun createDataModel(
@@ -34,15 +51,21 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
         // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
-        model["controllerName"] = entityMetadata.controllerName
+        model["controllerName"] = "${entityMetadata.className}Controller"
         model["className"] = entityMetadata.className
         model["entityName"] = entityMetadata.className
         model["entityNameLower"] = entityMetadata.entityNameLower
-        model["serviceName"] = entityMetadata.serviceName
-        model["dtoName"] = entityMetadata.dtoName
-        model["repositoryName"] = entityMetadata.repositoryName
-        model["mapperName"] = entityMetadata.mapperName
+        model["serviceName"] = "${entityMetadata.className}Service"
+        model["dtoName"] = "${entityMetadata.className}DTO"
+        model["repositoryName"] = "${entityMetadata.className}Repository"
+        model["mapperName"] = "${entityMetadata.className}Mapper"
         model["packageName"] = packageConfig["controllerPackage"] ?: entityMetadata.controllerPackage
+
+        // ========== PACKAGES POUR LES IMPORTS ==========
+        model["dtoPackage"] = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+        model["servicePackage"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
+        model["repositoryPackage"] = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
+        model["mapperPackage"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -61,13 +84,11 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         model["apiVersion"] = "1.0.0"
 
         // ========== IMPORTS ET ENDPOINTS ADDITIONNELS ==========
-        val additionalImports = generateAdditionalImports(entityMetadata)
+        val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
         val additionalEndpoints = generateAdditionalEndpoints(entityMetadata)
         val customMethods = generateCustomMethods(entityMetadata)
 
         model["additionalImports"] = additionalImports
-        model["imports"] = additionalImports
-        model["additionalEndpoints"] = additionalEndpoints
         model["customMethods"] = customMethods
 
         return model
@@ -88,14 +109,17 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
     /**
      * Generate additional imports needed for the controller.
      */
-    private fun generateAdditionalImports(entityMetadata: EntityMetadata): String {
+    private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val imports = mutableSetOf<String>()
 
-        // Add imports for DTO and service
-        imports.add("${entityMetadata.dtoPackage}.${entityMetadata.dtoName}")
-        imports.add("${entityMetadata.servicePackage}.${entityMetadata.serviceName}")
+        // Add imports for DTO and Service using the correct packages
+        val dtoPackage = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+        val servicePackage = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
 
-        return imports.joinToString("\n") { "import $it" }
+        imports.add("${dtoPackage}.${entityMetadata.className}DTO")
+        imports.add("${servicePackage}.${entityMetadata.className}Service")
+
+        return imports.joinToString("\n") { "import $it;" }
     }
 
     /**

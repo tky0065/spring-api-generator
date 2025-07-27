@@ -3,6 +3,7 @@ package com.enokdev.springapigenerator.generator.impl
 import com.enokdev.springapigenerator.generator.AbstractTemplateCodeGenerator
 import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.model.RelationType
+import com.enokdev.springapigenerator.service.DependencyValidationService
 import com.intellij.openapi.project.Project
 import java.nio.file.Paths
 
@@ -14,7 +15,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
     private val serviceImplGenerator = ServiceImplGenerator()
 
     override fun getBaseTemplateName(): String {
-        return "Service.java.ft"
+        return "Service"
     }
 
     override fun getTargetFilePath(
@@ -26,16 +27,25 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         val servicePackage = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
         val serviceDir = servicePackage.replace(".", "/")
         val extension = getFileExtensionForProject(project)
-        val fileName = "${entityMetadata.serviceName}.$extension"
+        val fileName = "${entityMetadata.className}Service.$extension"
         return Paths.get(sourceRoot, serviceDir, fileName).toString()
     }
 
     override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        // Vérifier et ajouter les dépendances requises si nécessaire
+        val features = mapOf("mapstruct" to true)
+        DependencyValidationService.validateAndEnsureDependencies(project, features)
+
         // Generate the service interface
         val interfaceCode = super.generate(project, entityMetadata, packageConfig)
 
         // Also generate the service implementation
-        serviceImplGenerator.generate(project, entityMetadata, packageConfig)
+        try {
+            serviceImplGenerator.generate(project, entityMetadata, packageConfig)
+        } catch (e: Exception) {
+            // Log warning but don't fail the interface generation
+            println("Warning: Could not generate service implementation: ${e.message}")
+        }
 
         return interfaceCode
     }
@@ -47,15 +57,23 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
         // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
-        model["serviceName"] = entityMetadata.serviceName
-        model["serviceImplName"] = entityMetadata.serviceImplName
+        model["serviceName"] = "${entityMetadata.className}Service"
+        model["serviceImplName"] = "${entityMetadata.className}ServiceImpl"
         model["className"] = entityMetadata.className
         model["entityName"] = entityMetadata.className
         model["entityNameLower"] = entityMetadata.entityNameLower
-        model["dtoName"] = entityMetadata.dtoName
-        model["repositoryName"] = entityMetadata.repositoryName
-        model["mapperName"] = entityMetadata.mapperName
+        model["dtoName"] = "${entityMetadata.className}DTO"
+        model["repositoryName"] = "${entityMetadata.className}Repository"
+        model["mapperName"] = "${entityMetadata.className}Mapper"
         model["packageName"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
+        model["idType"] = extractSimpleTypeName(entityMetadata.idType)
+
+        // ========== PACKAGES POUR LES IMPORTS ==========
+        model["domainPackage"] = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
+        model["dtoPackage"] = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+        model["repositoryPackage"] = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
+        model["servicePackage"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
+        model["mapperPackage"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -67,13 +85,18 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
 
         // Add service-specific model data
-        val additionalImports = generateAdditionalImports(entityMetadata)
-        val additionalMethods = generateAdditionalMethods(entityMetadata)
-        val customMethods = generateCustomMethods(entityMetadata)
+        val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
+        val relationshipMethods = generateRelationshipMethods(entityMetadata)
+        // Vérifie si les méthodes personnalisées sont activées dans la configuration
+        val generateCustomQueryMethods = packageConfig["generateCustomQueryMethods"]?.toBoolean() ?: false
+        val customMethods = if (generateCustomQueryMethods) {
+            generateCustomMethods(entityMetadata)
+        } else {
+            ""
+        }
 
         model["additionalImports"] = additionalImports
-        model["imports"] = additionalImports
-        model["additionalMethods"] = additionalMethods
+        model["relationshipMethods"] = relationshipMethods
         model["customMethods"] = customMethods
 
         return model
@@ -82,17 +105,10 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
     /**
      * Generate additional imports needed for the service interface.
      */
-    private fun generateAdditionalImports(entityMetadata: EntityMetadata): String {
-        val imports = mutableSetOf<String>()
-
-        // Add imports for DTO
-        imports.add("${entityMetadata.dtoPackage}.${entityMetadata.dtoName}")
-
-        // Add common imports
-        imports.add("java.util.List")
-        imports.add("java.util.Optional")
-
-        return imports.joinToString("\n") { "import $it;" }
+    private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        // Note: Basic imports are handled in templates to avoid duplicates
+        // Only add specific imports that are not already in the template
+        return ""
     }
 
     /**
@@ -281,12 +297,54 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
     }
 
     /**
+     * Generate relationship management methods for Kotlin services.
+     */
+    private fun generateRelationshipMethods(entityMetadata: EntityMetadata): String {
+        val methods = StringBuilder()
+
+        // Generate relationship management methods in Kotlin syntax
+        entityMetadata.fields.forEach { field ->
+            when (field.relationType) {
+                RelationType.MANY_TO_ONE, RelationType.ONE_TO_ONE -> {
+                    val relationName = field.name
+                    val relationTargetName = field.relationTargetSimpleName ?: "Object"
+                    val idTypeSimple = entityMetadata.idType.substringAfterLast(".")
+
+                    // Set related entity method
+                    methods.append("""
+    /**
+     * Set the ${relationName} for a ${entityMetadata.entityNameLower}.
+     *
+     * @param id the id of the ${entityMetadata.entityNameLower}
+     * @param relationId the id of the ${relationTargetName} to set
+     * @return the updated entity
+     */
+    fun set${relationName.replaceFirstChar { it.uppercase() }}(id: $idTypeSimple, relationId: $idTypeSimple): ${entityMetadata.dtoName}
+
+    /**
+     * Remove the ${relationName} from a ${entityMetadata.entityNameLower}.
+     *
+     * @param id the id of the ${entityMetadata.entityNameLower}
+     * @return the updated entity
+     */
+    fun remove${relationName.replaceFirstChar { it.uppercase() }}(id: $idTypeSimple): ${entityMetadata.dtoName}
+
+""")
+                }
+                else -> {}
+            }
+        }
+
+        return methods.toString()
+    }
+
+    /**
      * Helper class to generate service implementation.
      */
     private inner class ServiceImplGenerator : AbstractTemplateCodeGenerator() {
 
         override fun getBaseTemplateName(): String {
-            return "ServiceImpl.java.ft"
+            return "ServiceImpl"
         }
 
         override fun getTargetFilePath(

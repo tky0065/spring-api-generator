@@ -1,24 +1,25 @@
-package ${packageName}.controller;
+package ${packageName};
 
-import ${packageName}.entity.${className};
-import ${packageName}.dto.${className}DTO;
-import ${packageName}.service.${className}Service;
-import ${packageName}.mapper.${className}Mapper;
+import ${packageName.replace('.controller', '.entity')}.${className};
+import ${packageName.replace('.controller', '.dto')}.${className}DTO;
+import ${packageName.replace('.controller', '.service')}.${className}Service;
+import ${packageName.replace('.controller', '.mapper')}.${className}Mapper;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.stereotype.Controller;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
  * GraphQL Controller for ${className} entity.
  * Contains both Query and Mutation resolvers.
- *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
  */
 @Controller
 public class ${className}GraphQLController {
@@ -26,132 +27,229 @@ public class ${className}GraphQLController {
     private final ${className}Service ${entityNameLower}Service;
     private final ${className}Mapper ${entityNameLower}Mapper;
 
-    @Autowired
     public ${className}GraphQLController(${className}Service ${entityNameLower}Service, ${className}Mapper ${entityNameLower}Mapper) {
         this.${entityNameLower}Service = ${entityNameLower}Service;
         this.${entityNameLower}Mapper = ${entityNameLower}Mapper;
     }
 
-    //---------- QUERIES ----------//
+    // ========== QUERIES ==========
 
     /**
-     * Get a ${className} by ID
-     *
-     * @param id The ID of the ${className}
-     * @return The ${className} if found, null otherwise
+     * Get a single ${className} by ID
      */
     @QueryMapping
-    public ${className} get${className}(@Argument ${idType} id) {
-        try {
-            ${className}DTO dto = ${entityNameLower}Service.findOne(id);
-            return ${entityNameLower}Mapper.toEntity(dto);
-        } catch (RuntimeException e) {
-            return null;
-        }
+    public ${className}DTO ${entityNameLower}(@Argument Long id) {
+        return ${entityNameLower}Service.findOne(id).orElse(null);
     }
 
     /**
      * Get all ${className}s with pagination
-     *
-     * @param page The page number (zero-based)
-     * @param size The page size
-     * @return A list of ${className}s
      */
     @QueryMapping
-    public List<${className}> getAll${className}s(@Argument Integer page, @Argument Integer size) {
-        // Since our service doesn't support pagination directly, we'll need to handle it manually
-        List<${className}DTO> allDtos = ${entityNameLower}Service.findAll();
+    public ${className}Page ${entityNameLower}s(
+            @Argument int page,
+            @Argument int size,
+            @Argument String sort,
+            @Argument String direction) {
 
-        // Apply manual pagination
-        int pageVal = page != null ? page : 0;
-        int sizeVal = size != null ? size : 10;
-        int startIndex = pageVal * sizeVal;
-        int endIndex = Math.min(startIndex + sizeVal, allDtos.size());
+        Sort.Direction sortDirection = "DESC".equalsIgnoreCase(direction)
+            ? Sort.Direction.DESC
+            : Sort.Direction.ASC;
 
-        // If startIndex is beyond list size, return empty list
-        if (startIndex >= allDtos.size()) {
-            return List.of();
-        }
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(sortDirection, sort));
+        Page<${className}DTO> pageResult = ${entityNameLower}Service.findAll(pageRequest);
 
-        return allDtos.subList(startIndex, endIndex)
-            .stream()
-            .map(${entityNameLower}Mapper::toEntity)
-            .collect(Collectors.toList());
+        return ${className}Page.builder()
+            .content(pageResult.getContent())
+            .totalElements((int) pageResult.getTotalElements())
+            .totalPages(pageResult.getTotalPages())
+            .size(pageResult.getSize())
+            .number(pageResult.getNumber())
+            .first(pageResult.isFirst())
+            .last(pageResult.isLast())
+            .build();
     }
 
     /**
-     * Count all ${className}s
-     *
-     * @return The number of ${className}s
+     * Search ${className}s by query
      */
     @QueryMapping
-    public long count${className}s() {
-        return ${entityNameLower}Service.findAll().size();
+    public ${className}Page search${className}s(
+            @Argument String query,
+            @Argument int page,
+            @Argument int size) {
+
+        // Implementation would depend on your search requirements
+        PageRequest pageRequest = PageRequest.of(page, size);
+        Page<${className}DTO> pageResult = ${entityNameLower}Service.findAll(pageRequest);
+
+        return ${className}Page.builder()
+            .content(pageResult.getContent())
+            .totalElements((int) pageResult.getTotalElements())
+            .totalPages(pageResult.getTotalPages())
+            .size(pageResult.getSize())
+            .number(pageResult.getNumber())
+            .first(pageResult.isFirst())
+            .last(pageResult.isLast())
+            .build();
     }
 
-    //---------- MUTATIONS ----------//
+    /**
+     * Count total ${className}s
+     */
+    @QueryMapping
+    public int count${className}s() {
+        return (int) ${entityNameLower}Service.count();
+    }
+
+    // ========== MUTATIONS ==========
 
     /**
      * Create a new ${className}
-     *
-     * @param input The ${className} to create
-     * @return The created ${className}
      */
     @MutationMapping
-    public ${className} create${className}(@Argument ${className} input) {
-        // Ensure we're creating a new entity
-        if (input.getId() != null) {
-            input.setId(null);
-        }
-
-        ${className}DTO dto = ${entityNameLower}Mapper.toDto(input);
-        ${className}DTO savedDto = ${entityNameLower}Service.save(dto);
-        return ${entityNameLower}Mapper.toEntity(savedDto);
+    public ${className}DTO create${className}(@Argument Create${className}Input input) {
+        ${className}DTO dto = mapCreateInputToDTO(input);
+        return ${entityNameLower}Service.save(dto);
     }
 
     /**
      * Update an existing ${className}
-     *
-     * @param id The ID of the ${className} to update
-     * @param input The updated ${className} data
-     * @return The updated ${className}
-     * @throws RuntimeException if the ${className} is not found
      */
     @MutationMapping
-    public ${className} update${className}(@Argument ${idType} id, @Argument ${className} input) {
-        // Check if entity exists
-        try {
-            ${entityNameLower}Service.findOne(id); // Will throw exception if not found
-
-            // Ensure the ID is set correctly
-            input.setId(id);
-
-            ${className}DTO dto = ${entityNameLower}Mapper.toDto(input);
-            ${className}DTO updatedDto = ${entityNameLower}Service.update(dto);
-            return ${entityNameLower}Mapper.toEntity(updatedDto);
-        } catch (RuntimeException e) {
+    public ${className}DTO update${className}(@Argument Long id, @Argument Update${className}Input input) {
+        Optional<${className}DTO> existingDto = ${entityNameLower}Service.findOne(id);
+        if (existingDto.isEmpty()) {
             throw new RuntimeException("${className} not found with id: " + id);
         }
+
+        ${className}DTO dto = mapUpdateInputToDTO(input, existingDto.get());
+        return ${entityNameLower}Service.update(dto);
     }
 
     /**
      * Delete a ${className}
-     *
-     * @param id The ID of the ${className} to delete
-     * @return True if deleted successfully
      */
     @MutationMapping
-    public boolean delete${className}(@Argument ${idType} id) {
+    public boolean delete${className}(@Argument Long id) {
         try {
-            // Vérifier d'abord si l'entité existe
-            ${entityNameLower}Service.findOne(id);
-
-            // Si aucune exception n'est lancée, l'entité existe et peut être supprimée
             ${entityNameLower}Service.delete(id);
             return true;
-        } catch (RuntimeException e) {
-            // L'entité n'existe pas
+        } catch (Exception e) {
             return false;
         }
+    }
+
+    // ========== HELPER METHODS ==========
+
+    private ${className}DTO mapCreateInputToDTO(Create${className}Input input) {
+        ${className}DTO dto = new ${className}DTO();
+        // Map fields from input to DTO
+${createInputMapping}
+        return dto;
+    }
+
+    private ${className}DTO mapUpdateInputToDTO(Update${className}Input input, ${className}DTO existingDto) {
+        // Update only non-null fields from input
+${updateInputMapping}
+        return existingDto;
+    }
+
+    // ========== INNER CLASSES ==========
+
+    /**
+     * Pagination wrapper for GraphQL responses
+     */
+    public static class ${className}Page {
+        private List<${className}DTO> content;
+        private int totalElements;
+        private int totalPages;
+        private int size;
+        private int number;
+        private boolean first;
+        private boolean last;
+
+        public static ${className}PageBuilder builder() {
+            return new ${className}PageBuilder();
+        }
+
+        // Getters and setters
+        public List<${className}DTO> getContent() { return content; }
+        public void setContent(List<${className}DTO> content) { this.content = content; }
+
+        public int getTotalElements() { return totalElements; }
+        public void setTotalElements(int totalElements) { this.totalElements = totalElements; }
+
+        public int getTotalPages() { return totalPages; }
+        public void setTotalPages(int totalPages) { this.totalPages = totalPages; }
+
+        public int getSize() { return size; }
+        public void setSize(int size) { this.size = size; }
+
+        public int getNumber() { return number; }
+        public void setNumber(int number) { this.number = number; }
+
+        public boolean isFirst() { return first; }
+        public void setFirst(boolean first) { this.first = first; }
+
+        public boolean isLast() { return last; }
+        public void setLast(boolean last) { this.last = last; }
+
+        public static class ${className}PageBuilder {
+            private ${className}Page page = new ${className}Page();
+
+            public ${className}PageBuilder content(List<${className}DTO> content) {
+                page.setContent(content);
+                return this;
+            }
+
+            public ${className}PageBuilder totalElements(int totalElements) {
+                page.setTotalElements(totalElements);
+                return this;
+            }
+
+            public ${className}PageBuilder totalPages(int totalPages) {
+                page.setTotalPages(totalPages);
+                return this;
+            }
+
+            public ${className}PageBuilder size(int size) {
+                page.setSize(size);
+                return this;
+            }
+
+            public ${className}PageBuilder number(int number) {
+                page.setNumber(number);
+                return this;
+            }
+
+            public ${className}PageBuilder first(boolean first) {
+                page.setFirst(first);
+                return this;
+            }
+
+            public ${className}PageBuilder last(boolean last) {
+                page.setLast(last);
+                return this;
+            }
+
+            public ${className}Page build() {
+                return page;
+            }
+        }
+    }
+
+    /**
+     * Input class for creating ${className}
+     */
+    public static class Create${className}Input {
+${createInputClass}
+    }
+
+    /**
+     * Input class for updating ${className}
+     */
+    public static class Update${className}Input {
+${updateInputClass}
     }
 }

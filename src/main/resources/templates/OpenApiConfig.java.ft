@@ -1,3 +1,4 @@
+<#if enableOpenApi?? && enableOpenApi>
 package ${configPackage};
 
 import io.swagger.v3.oas.models.OpenAPI;
@@ -29,14 +30,13 @@ public class OpenApiConfig {
                                 .url("https://github.com/yourusername/yourproject"))
                         .license(new License()
                                 .name("${apiLicense}")
-                                .url("https://opensource.org/licenses/${apiLicense}")))
+                                .url("https://opensource.org/licenses/MIT")))
                 .components(new Components()
-                        .addSecuritySchemes("bearer-jwt",
+                        .addSecuritySchemes("bearerAuth",
                                 new SecurityScheme()
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
-                                        .bearerFormat("JWT")
-                                        .in(SecurityScheme.In.HEADER)
-                                        .name("Authorization")));
+                                        .bearerFormat("JWT")));
     }
 }
+</#if>

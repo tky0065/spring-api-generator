@@ -22,7 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ${entityName}ServiceTest {
+public class ${entityName}ServiceTest {
 
     @Mock
     private ${entityName}Repository ${entityNameLower}Repository;

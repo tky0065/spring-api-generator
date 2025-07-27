@@ -1,40 +1,49 @@
 package ${packageName}
 
+import ${domainPackage}.${entityName}
+import ${dtoPackage}.${entityName}DTO
 import org.mapstruct.*
 import org.springframework.data.domain.Page
-<#if imports??>
-${imports}
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
 </#if>
 
 /**
- * Mapper for the entity ${entityName} and its DTO ${dtoName}.
+ * Mapper for the entity ${entityName} and its DTO ${entityName}DTO.
  */
-@Mapper(componentModel = "spring", uses = [])
+<#if usesMappers?has_content>
+@Mapper(componentModel = "spring", uses = [${usesMappers?join(", ")}])
+<#else>
+@Mapper(componentModel = "spring")
+</#if>
 interface ${mapperName} {
 
-    @Mapping(target = "id", source = "id")
-<#if mappings??>
-<#list mappings as mapping>
-    ${mapping}
-</#list>
+<#if mappings?has_content>
+    ${mappings?join("\n    ")}
 </#if>
+    fun toDto(${entityNameLower}: ${entityName}): ${entityName}DTO
 
-    fun toDto(${entityVarName}: ${entityName}): ${dtoName}
+    fun toDto(${entityNameLower}List: List<${entityName}>): List<${entityName}DTO>
 
-    @InheritInverseConfiguration
-    fun toEntity(${entityVarName}DTO: ${dtoName}): ${entityName}
+    fun toDto(${entityNameLower}Set: Set<${entityName}>): Set<${entityName}DTO>
 
-    /**
-     * Convert a list of entities to a list of DTOs
-     */
-    fun toDto(${entityVarName}List: List<${entityName}>): List<${dtoName}> =
-        ${entityVarName}List.map { toDto(it) }
+    fun toEntity(${entityNameLower}DTO: ${entityName}DTO): ${entityName}
+
+    fun toEntity(dtoList: List<${entityName}DTO>): List<${entityName}>
+
+    fun toEntity(dtoSet: Set<${entityName}DTO>): Set<${entityName}>
 
     /**
      * Convert a page of entities to a page of DTOs
      */
-    fun toDto(page: Page<${entityName}>): Page<${dtoName}> =
+    fun toDto(page: Page<${entityName}>): Page<${entityName}DTO> =
         page.map { toDto(it) }
+
+    /**
+     * Partial update method
+     */
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    fun partialUpdate(@MappingTarget entity: ${entityName}, dto: ${entityName}DTO)
 
 <#if customMethods?? && customMethods != "">
 ${customMethods}

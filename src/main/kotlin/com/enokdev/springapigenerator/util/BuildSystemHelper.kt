@@ -303,7 +303,6 @@ class BuildSystemHelper {
                     val pomXml = File(Paths.get(basePath, "pom.xml").toString())
                     if (pomXml.exists()) {
                         val content = pomXml.readText()
-                        // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
                         val dependenciesTag = "<dependencies>"
                         val index = content.indexOf(dependenciesTag)
                         if (index != -1) {
@@ -311,15 +310,10 @@ class BuildSystemHelper {
                                 index + dependenciesTag.length,
                                 """
                                 
-                                <!-- Spring GraphQL -->
+                                <!-- Spring Boot GraphQL -->
                                 <dependency>
                                     <groupId>org.springframework.boot</groupId>
                                     <artifactId>spring-boot-starter-graphql</artifactId>
-                                </dependency>
-                                <dependency>
-                                    <groupId>org.springframework.graphql</groupId>
-                                    <artifactId>spring-graphql-test</artifactId>
-                                    <scope>test</scope>
                                 </dependency>
                                 """
                             ).toString()
@@ -338,9 +332,8 @@ class BuildSystemHelper {
                                 index + dependenciesBlock.length,
                                 """
                                 
-                                // Spring GraphQL
+                                // Spring Boot GraphQL
                                 implementation("org.springframework.boot:spring-boot-starter-graphql")
-                                testImplementation("org.springframework.graphql:spring-graphql-test")
                                 """
                             ).toString()
                             buildGradleKts.writeText(updatedContent)
@@ -358,9 +351,8 @@ class BuildSystemHelper {
                                 index + dependenciesBlock.length,
                                 """
                                 
-                                // Spring GraphQL
+                                // Spring Boot GraphQL
                                 implementation 'org.springframework.boot:spring-boot-starter-graphql'
-                                testImplementation 'org.springframework.graphql:spring-graphql-test'
                                 """
                             ).toString()
                             buildGradle.writeText(updatedContent)
@@ -374,9 +366,9 @@ class BuildSystemHelper {
         }
 
         /**
-         * Adds OpenAPI 3.0 dependency to the build file
+         * Adds Validation dependency to the build file
          */
-        fun addOpenApiDependency(project: Project, buildSystemType: String) {
+        fun addValidationDependency(project: Project, buildSystemType: String) {
             val basePath = project.basePath ?: return
 
             when (buildSystemType) {
@@ -384,7 +376,6 @@ class BuildSystemHelper {
                     val pomXml = File(Paths.get(basePath, "pom.xml").toString())
                     if (pomXml.exists()) {
                         val content = pomXml.readText()
-                        // Simple approach to add dependencies, for a more robust solution a proper XML parser would be needed
                         val dependenciesTag = "<dependencies>"
                         val index = content.indexOf(dependenciesTag)
                         if (index != -1) {
@@ -392,11 +383,10 @@ class BuildSystemHelper {
                                 index + dependenciesTag.length,
                                 """
                                 
-                                <!-- SpringDoc OpenAPI 3.0 for API documentation -->
+                                <!-- Spring Boot Validation -->
                                 <dependency>
-                                    <groupId>org.springdoc</groupId>
-                                    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-                                    <version>2.8.9</version>
+                                    <groupId>org.springframework.boot</groupId>
+                                    <artifactId>spring-boot-starter-validation</artifactId>
                                 </dependency>
                                 """
                             ).toString()
@@ -415,8 +405,8 @@ class BuildSystemHelper {
                                 index + dependenciesBlock.length,
                                 """
                                 
-                                // SpringDoc OpenAPI 3.0 for API documentation
-                                implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
+                                // Spring Boot Validation
+                                implementation("org.springframework.boot:spring-boot-starter-validation")
                                 """
                             ).toString()
                             buildGradleKts.writeText(updatedContent)
@@ -434,8 +424,8 @@ class BuildSystemHelper {
                                 index + dependenciesBlock.length,
                                 """
                                 
-                                // SpringDoc OpenAPI 3.0 for API documentation
-                                implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9'
+                                // Spring Boot Validation
+                                implementation 'org.springframework.boot:spring-boot-starter-validation'
                                 """
                             ).toString()
                             buildGradle.writeText(updatedContent)
@@ -449,11 +439,133 @@ class BuildSystemHelper {
         }
 
         /**
-         * Rafraîchit les fichiers du projet dans l'IDE
+         * Vérifie si une dépendance existe dans le fichier de build
+         *
+         * @param project Le projet IntelliJ
+         * @param dependencyGroup Le groupe de la dépendance (ex: "org.springframework.boot")
+         * @param dependencyArtifact L'artefact de la dépendance (ex: "spring-boot-starter-validation")
+         * @return true si la dépendance existe, false sinon
+         */
+        fun hasDependency(project: Project, dependencyGroup: String, dependencyArtifact: String): Boolean {
+            val basePath = project.basePath ?: return false
+            val buildSystemType = detectBuildSystemType(project)
+
+            when (buildSystemType) {
+                "Maven" -> {
+                    val pomXml = File(Paths.get(basePath, "pom.xml").toString())
+                    if (pomXml.exists()) {
+                        val content = pomXml.readText()
+                        return content.contains("<groupId>$dependencyGroup</groupId>") &&
+                               content.contains("<artifactId>$dependencyArtifact</artifactId>")
+                    }
+                }
+                "Gradle Kotlin" -> {
+                    val buildGradleKts = File(Paths.get(basePath, "build.gradle.kts").toString())
+                    if (buildGradleKts.exists()) {
+                        val content = buildGradleKts.readText()
+                        return content.contains("\"$dependencyGroup:$dependencyArtifact") ||
+                               content.contains("'$dependencyGroup:$dependencyArtifact")
+                    }
+                }
+                else -> {
+                    val buildGradle = File(Paths.get(basePath, "build.gradle").toString())
+                    if (buildGradle.exists()) {
+                        val content = buildGradle.readText()
+                        return content.contains("'$dependencyGroup:$dependencyArtifact") ||
+                               content.contains("\"$dependencyGroup:$dependencyArtifact")
+                    }
+                }
+            }
+            return false
+        }
+
+        /**
+         * Vérifie et ajoute automatiquement les dépendances requises selon les fonctionnalités sélectionnées
+         *
+         * @param project Le projet IntelliJ
+         * @param features Map des fonctionnalités activées
+         */
+        fun ensureRequiredDependencies(project: Project, features: Map<String, Boolean>) {
+            val buildSystemType = detectBuildSystemType(project)
+
+            // Vérifier et ajouter les dépendances de validation si nécessaire
+            if (features["validation"] == true) {
+                if (!hasValidationDependency(project)) {
+                    addValidationDependency(project, buildSystemType)
+                }
+            }
+
+            // Vérifier et ajouter les dépendances Swagger/OpenAPI si nécessaire
+            if (features["swagger"] == true || features["openapi"] == true) {
+                if (!hasSwaggerDependency(project)) {
+                    addSwaggerDependency(project, buildSystemType)
+                }
+            }
+
+            // Vérifier et ajouter les dépendances Security si nécessaire
+            if (features["security"] == true) {
+                if (!hasSecurityDependency(project)) {
+                    addSpringSecurityDependency(project, buildSystemType)
+                }
+            }
+
+            // Vérifier et ajouter les dépendances GraphQL si nécessaire
+            if (features["graphql"] == true) {
+                if (!hasGraphQLDependency(project)) {
+                    addGraphQLDependency(project, buildSystemType)
+                }
+            }
+
+            // Vérifier et ajouter les dépendances MapStruct si nécessaire
+            if (features["mapstruct"] == true) {
+                if (!hasMapStructDependency(project)) {
+                    addMapstructDependency(project, buildSystemType)
+                }
+            }
+        }
+
+        /**
+         * Vérifie si la dépendance de validation existe
+         */
+        fun hasValidationDependency(project: Project): Boolean {
+            return hasDependency(project, "org.springframework.boot", "spring-boot-starter-validation")
+        }
+
+        /**
+         * Vérifie si la dépendance Swagger/OpenAPI existe
+         */
+        fun hasSwaggerDependency(project: Project): Boolean {
+            return hasDependency(project, "org.springdoc", "springdoc-openapi-ui") ||
+                   hasDependency(project, "org.springdoc", "springdoc-openapi-starter-webmvc-ui")
+        }
+
+        /**
+         * Vérifie si la dépendance Security existe
+         */
+        fun hasSecurityDependency(project: Project): Boolean {
+            return hasDependency(project, "org.springframework.boot", "spring-boot-starter-security")
+        }
+
+        /**
+         * Vérifie si la dépendance GraphQL existe
+         */
+        fun hasGraphQLDependency(project: Project): Boolean {
+            return hasDependency(project, "org.springframework.boot", "spring-boot-starter-graphql")
+        }
+
+        /**
+         * Vérifie si la dépendance MapStruct existe
+         */
+        fun hasMapStructDependency(project: Project): Boolean {
+            return hasDependency(project, "org.mapstruct", "mapstruct")
+        }
+
+        /**
+         * Refresh project files in IntelliJ IDEA
          */
         private fun refreshProjectFiles() {
             ApplicationManager.getApplication().invokeLater {
-                WriteAction.runAndWait<Throwable> {
+                WriteAction.run<RuntimeException> {
                     LocalFileSystem.getInstance().refresh(false)
                 }
             }

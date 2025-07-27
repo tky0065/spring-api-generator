@@ -5,7 +5,7 @@ import com.enokdev.springapigenerator.service.CodeStyleDetector.*
 /**
  * Adapts generated code to match the project's coding style.
  */
-class CodeStyleAdapter(private val styleConfig: CodeStyleConfig) {
+class CodeStyleAdapter(val styleConfig: CodeStyleConfig) {
 
     /**
      * Applies the detected code style to the generated code.

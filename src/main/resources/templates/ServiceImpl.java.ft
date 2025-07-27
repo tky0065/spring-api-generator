@@ -1,17 +1,18 @@
-package ${packageName}.service.impl;
+package ${packageName};
 
-import ${packageName}.entity.${entityName};
-import ${packageName}.dto.${entityName}DTO;
-import ${packageName}.repository.${entityName}Repository;
-import ${packageName}.service.${entityName}Service;
-import ${packageName}.mapper.${entityName}Mapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import ${servicePackage}.${serviceName};
+import ${dtoPackage}.${dtoName};
+import ${domainPackage}.${entityName};
+import ${repositoryPackage}.${repositoryName};
+import ${mapperPackage}.${mapperName};
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.LinkedList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -19,83 +20,94 @@ import java.util.stream.Collectors;
  */
 @Service
 @Transactional
-public class ${entityName}ServiceImpl implements ${entityName}Service {
+public class ${serviceImplName} implements ${serviceName} {
 
-    private final Logger log = LoggerFactory.getLogger(${entityName}ServiceImpl.class);
+    private final Logger log = LoggerFactory.getLogger(${serviceImplName}.class);
 
-    private final ${entityName}Repository ${entityNameLower}Repository;
-    private final ${entityName}Mapper ${entityNameLower}Mapper;
+    private final ${repositoryName} ${repositoryVarName};
+    private final ${mapperName} ${mapperVarName};
 
-    public ${entityName}ServiceImpl(${entityName}Repository ${entityNameLower}Repository, ${entityName}Mapper ${entityNameLower}Mapper) {
-        this.${entityNameLower}Repository = ${entityNameLower}Repository;
-        this.${entityNameLower}Mapper = ${entityNameLower}Mapper;
+    public ${serviceImplName}(${repositoryName} ${repositoryVarName}, ${mapperName} ${mapperVarName}) {
+        this.${repositoryVarName} = ${repositoryVarName};
+        this.${mapperVarName} = ${mapperVarName};
     }
 
-    /**
-     * Save a ${entityNameLower}.
-     *
-     * @param ${entityNameLower}DTO the entity to save.
-     * @return the persisted entity.
-     */
     @Override
-    public ${entityName}DTO save(${entityName}DTO ${entityNameLower}DTO) {
+    public ${dtoName} save(${dtoName} ${entityNameLower}DTO) {
         log.debug("Request to save ${entityName} : {}", ${entityNameLower}DTO);
-        ${entityName} ${entityNameLower} = ${entityNameLower}Mapper.toEntity(${entityNameLower}DTO);
-        ${entityNameLower} = ${entityNameLower}Repository.save(${entityNameLower});
-        return ${entityNameLower}Mapper.toDto(${entityNameLower});
+        ${entityName} ${entityNameLower} = ${mapperVarName}.toEntity(${entityNameLower}DTO);
+        ${entityNameLower} = ${repositoryVarName}.save(${entityNameLower});
+        return ${mapperVarName}.toDto(${entityNameLower});
     }
 
-    /**
-     * Update a ${entityNameLower}.
-     *
-     * @param ${entityNameLower}DTO the entity to update.
-     * @return the persisted entity.
-     */
     @Override
-    public ${entityName}DTO update(${entityName}DTO ${entityNameLower}DTO) {
+    public ${dtoName} update(${dtoName} ${entityNameLower}DTO) {
         log.debug("Request to update ${entityName} : {}", ${entityNameLower}DTO);
-        ${entityName} ${entityNameLower} = ${entityNameLower}Mapper.toEntity(${entityNameLower}DTO);
-        ${entityNameLower} = ${entityNameLower}Repository.save(${entityNameLower});
-        return ${entityNameLower}Mapper.toDto(${entityNameLower});
+        ${entityName} ${entityNameLower} = ${mapperVarName}.toEntity(${entityNameLower}DTO);
+        ${entityNameLower} = ${repositoryVarName}.save(${entityNameLower});
+        return ${mapperVarName}.toDto(${entityNameLower});
     }
 
-    /**
-     * Get all the ${entityNameLower}s.
-     *
-     * @return the list of entities.
-     */
+    @Override
+    public Optional<${dtoName}> partialUpdate(${dtoName} ${entityNameLower}DTO) {
+        log.debug("Request to partially update ${entityName} : {}", ${entityNameLower}DTO);
+
+        return ${repositoryVarName}
+            .findById(${entityNameLower}DTO.getId())
+            .map(existing${entityName} -> {
+                ${mapperVarName}.partialUpdate(existing${entityName}, ${entityNameLower}DTO);
+                return existing${entityName};
+            })
+            .map(${repositoryVarName}::save)
+            .map(${mapperVarName}::toDto);
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public List<${entityName}DTO> findAll() {
+    public List<${dtoName}> findAll() {
         log.debug("Request to get all ${entityName}s");
-        return ${entityNameLower}Repository.findAll().stream()
-            .map(${entityNameLower}Mapper::toDto)
-            .collect(Collectors.toCollection(LinkedList::new));
+        return ${repositoryVarName}.findAll().stream()
+            .map(${mapperVarName}::toDto)
+            .collect(Collectors.toList());
     }
 
-    /**
-     * Get one ${entityNameLower} by id.
-     *
-     * @param id the id of the entity.
-     * @return the entity.
-     */
     @Override
     @Transactional(readOnly = true)
-    public ${entityName}DTO findOne(${idType} id) {
-        log.debug("Request to get ${entityName} : {}", id);
-        return ${entityNameLower}Repository.findById(id)
-            .map(${entityNameLower}Mapper::toDto)
-            .orElseThrow(() -> new RuntimeException("Entity not found with id " + id));
+    public Page<${dtoName}> findAll(Pageable pageable) {
+        log.debug("Request to get all ${entityName}s with pagination");
+        return ${repositoryVarName}.findAll(pageable)
+            .map(${mapperVarName}::toDto);
     }
 
-    /**
-     * Delete the ${entityNameLower} by id.
-     *
-     * @param id the id of the entity.
-     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<${dtoName}> findOne(${idType} id) {
+        log.debug("Request to get ${entityName} : {}", id);
+        return ${repositoryVarName}.findById(id)
+            .map(${mapperVarName}::toDto);
+    }
+
     @Override
     public void delete(${idType} id) {
         log.debug("Request to delete ${entityName} : {}", id);
-        ${entityNameLower}Repository.deleteById(id);
+        ${repositoryVarName}.deleteById(id);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long count() {
+        log.debug("Request to count ${entityName}s");
+        return ${repositoryVarName}.count();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsById(${idType} id) {
+        log.debug("Request to check if ${entityName} exists : {}", id);
+        return ${repositoryVarName}.existsById(id);
+    }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

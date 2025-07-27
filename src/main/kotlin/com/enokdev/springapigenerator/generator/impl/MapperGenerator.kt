@@ -12,7 +12,7 @@ import java.nio.file.Paths
 class MapperGenerator : AbstractTemplateCodeGenerator() {
 
     override fun getBaseTemplateName(): String {
-        return "Mapper.java.ft"
+        return "Mapper"
     }
 
     override fun getTargetFilePath(
@@ -24,7 +24,7 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
         val mapperPackage = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
         val mapperDir = mapperPackage.replace(".", "/")
         val extension = getFileExtensionForProject(project)
-        val fileName = "${entityMetadata.mapperName}.$extension"
+        val fileName = "${entityMetadata.className}Mapper.$extension"
         return Paths.get(sourceRoot, mapperDir, fileName).toString()
     }
 
@@ -35,12 +35,16 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
         val model = super.createDataModel(entityMetadata, packageConfig)
 
         // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
-        model["mapperName"] = entityMetadata.mapperName
+        model["mapperName"] = "${entityMetadata.className}Mapper"
         model["className"] = entityMetadata.className
         model["entityName"] = entityMetadata.className
         model["entityNameLower"] = entityMetadata.entityNameLower
-        model["dtoName"] = entityMetadata.dtoName
+        model["dtoName"] = "${entityMetadata.className}DTO"
         model["packageName"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
+
+        // ========== PACKAGES POUR LES IMPORTS ==========
+        model["domainPackage"] = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
+        model["dtoPackage"] = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -53,13 +57,12 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
         // Add mapper-specific data
         val mappings = generateMappings(entityMetadata)
         val usesMappers = collectUsedMappers(entityMetadata)
-        val additionalImports = generateAdditionalImports(entityMetadata)
+        val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
         val customMethods = generateCustomMethods(entityMetadata)
 
         model["mappings"] = mappings
         model["usesMappers"] = usesMappers
         model["additionalImports"] = additionalImports
-        model["imports"] = additionalImports
         model["customMethods"] = customMethods
 
         return model
@@ -111,25 +114,9 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
     }
 
     /**
-     * Generate imports for the mapper.
-     */
-    private fun generateImports(entityMetadata: EntityMetadata): List<String> {
-        val imports = mutableListOf<String>()
-
-        val entityPackage = entityMetadata.domainPackage // On garde le nom de la variable mais il contient maintenant le package entity
-        val dtoPackage = entityMetadata.dtoPackage
-
-        imports.add("$entityPackage.${entityMetadata.className}")
-        imports.add("$dtoPackage.${entityMetadata.dtoName}")
-        imports.add("org.mapstruct.*")
-
-        return imports
-    }
-
-    /**
      * Generate additional imports needed for the mapper.
      */
-    private fun generateAdditionalImports(entityMetadata: EntityMetadata): String {
+    private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val imports = mutableListOf<String>()
 
         // Add imports for related entities
@@ -137,7 +124,10 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
             if (field.relationType != RelationType.NONE) {
                 val targetName = field.relationTargetSimpleName
                 if (targetName != null) {
-                    imports.add("import ${entityMetadata.entityBasePackage}.dto.${targetName}DTO;")
+                    val entityPackage = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
+                    val dtoPackage = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+                    imports.add("import ${entityPackage}.${targetName};")
+                    imports.add("import ${dtoPackage}.${targetName}DTO;")
                 }
             }
         }

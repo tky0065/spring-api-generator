@@ -2,33 +2,49 @@ package ${packageName}
 
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
-<#if imports??>
-${imports}
+import java.util.*
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
 </#if>
 
 /**
- * Service interface for managing ${entityName}s
+ * Service interface for managing ${entityName}s .
  */
 interface ${serviceName} {
 
     /**
-     * Save a ${entityName}.
+     * Save a ${entityNameLower}.
      *
-     * @param ${entityVarName}DTO the entity to save
+     * @param ${entityNameLower}DTO the entity to save
      * @return the persisted entity
      */
-    fun save(${entityVarName}DTO: ${dtoName}): ${dtoName}
+    fun save(${entityNameLower}DTO: ${dtoName}): ${dtoName}
 
     /**
-     * Updates a ${entityName}.
+     * Update a ${entityNameLower}.
      *
-     * @param ${entityVarName}DTO the entity to update
+     * @param ${entityNameLower}DTO the entity to update
      * @return the persisted entity
      */
-    fun update(${entityVarName}DTO: ${dtoName}): ${dtoName}
+    fun update(${entityNameLower}DTO: ${dtoName}): ${dtoName}
 
     /**
-     * Get all the ${entityVarName}s.
+     * Partially update a ${entityNameLower}.
+     *
+     * @param ${entityNameLower}DTO the entity to update partially
+     * @return the persisted entity
+     */
+    fun partialUpdate(${entityNameLower}DTO: ${dtoName}): Optional<${dtoName}>
+
+    /**
+     * Get all the ${entityNameLower}s.
+     *
+     * @return the list of entities
+     */
+    fun findAll(): List<${dtoName}>
+
+    /**
+     * Get all the ${entityNameLower}s with pagination.
      *
      * @param pageable the pagination information
      * @return the list of entities
@@ -36,19 +52,34 @@ interface ${serviceName} {
     fun findAll(pageable: Pageable): Page<${dtoName}>
 
     /**
-     * Get the "${entityVarName}" by id.
+     * Get the "id" ${entityNameLower}.
      *
      * @param id the id of the entity
      * @return the entity
      */
-    fun findOne(id: ${idType!"Long"}): ${dtoName}?
+    fun findOne(id: ${idType}): Optional<${dtoName}>
 
     /**
-     * Delete the "${entityVarName}" by id.
+     * Delete the "id" ${entityNameLower}.
      *
      * @param id the id of the entity
      */
-    fun delete(id: ${idType!"Long"})
+    fun delete(id: ${idType})
+
+    /**
+     * Count total number of ${entityNameLower}s.
+     *
+     * @return the total count
+     */
+    fun count(): Long
+
+    /**
+     * Check if a ${entityNameLower} exists by id.
+     *
+     * @param id the id to check
+     * @return true if exists, false otherwise
+     */
+    fun existsById(id: ${idType}): Boolean
 
 <#if customMethods?? && customMethods != "">
 ${customMethods}

@@ -152,10 +152,19 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 If you encounter any issues or have questions, please file an issue on our [GitHub repository](https://github.com/tky0065/spring-api-generator/issues).
 
+## 📚 Documentation
+
+### Guides Complets
+- **[Guide d'Installation](docs/INSTALLATION.md)** - Instructions détaillées d'installation et configuration
+- **[Guide Utilisateur](docs/USER_GUIDE.md)** - Guide complet d'utilisation du plugin
+- **[Guide Développeur](docs/DEVELOPER_GUIDE.md)** - Documentation pour contribuer au projet
+
+### Documentation Technique
+- **[Conventions de Nommage](docs/NAMING_CONVENTIONS.md)** - Standards et conventions utilisés dans le code généré
+- **[Guide de Dépannage](docs/TROUBLESHOOTING.md)** - Solutions aux problèmes courants et diagnostic
+- **[Exemples de Code Généré](docs/CODE_EXAMPLES.md)** - Exemples complets du code produit par le plugin
+
+
 ---
 
 Developed with ❤️ by [EnokDev](https://enokdev-com.vercel.app)
-
-
-
-

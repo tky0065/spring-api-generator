@@ -1,11 +1,13 @@
-package ${packageName}.mapper;
+package ${packageName};
 
-import ${packageName}.entity.${entityName};
-import ${packageName}.dto.${entityName}DTO;
+import ${domainPackage}.${entityName};
+import ${dtoPackage}.${entityName}DTO;
 import org.mapstruct.*;
-${additionalImports}
 import java.util.List;
 import java.util.Set;
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
+</#if>
 
 /**
  * Mapper for the entity {@link ${entityName}} and its DTO {@link ${entityName}DTO}.
@@ -15,20 +17,20 @@ import java.util.Set;
 <#else>
 @Mapper(componentModel = "spring")
 </#if>
-public interface ${entityName}Mapper {
+public interface ${mapperName} {
 
-    <#if mappings?has_content>
+<#if mappings?has_content>
     ${mappings?join("\n    ")}
-    </#if>
+</#if>
     ${entityName}DTO toDto(${entityName} entity);
 
     List<${entityName}DTO> toDto(List<${entityName}> entityList);
 
     Set<${entityName}DTO> toDto(Set<${entityName}> entityList);
 
-    <#if mappings?has_content>
+<#if mappings?has_content>
     ${mappings?join("\n    ")}
-    </#if>
+</#if>
     ${entityName} toEntity(${entityName}DTO entityDTO);
 
     List<${entityName}> toEntity(List<${entityName}DTO> dtoList);
@@ -36,8 +38,12 @@ public interface ${entityName}Mapper {
     Set<${entityName}> toEntity(Set<${entityName}DTO> dtoList);
 
     /**
-     * Partial update
+     * Partial update method
      */
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void partialUpdate(@MappingTarget ${entityName} entity, ${entityName}DTO dto);
+
+<#if customMethods?? && customMethods != "">
+    ${customMethods}
+</#if>
 }

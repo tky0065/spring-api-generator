@@ -1,126 +1,182 @@
 package ${packageName}
 
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
 import io.swagger.v3.oas.annotations.Operation
-import io.swagger.v3.oas.annotations.media.Content
-import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
+import io.swagger.v3.oas.annotations.tags.Tag
+</#if>
+<#if hasValidationDependency?? && hasValidationDependency>
+import jakarta.validation.Valid
+</#if>
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import javax.validation.Valid
-<#if imports??>
-${imports}
+import java.net.URI
+import java.util.*
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
 </#if>
 
 /**
  * REST controller for managing ${entityName}.
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/${entityApiPath}")
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
+@Tag(name = "${entityName}s", description = "The ${entityName} API")
+</#if>
 class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
 
     private val log = LoggerFactory.getLogger(${controllerName}::class.java)
 
-    /**
-     * {@code POST  /${entityApiPath}} : Create a new ${entityName}.
-     *
-     * @param ${entityVarName}DTO the ${entityVarName}DTO to create
-     * @return the [ResponseEntity] with status {@code 201 (Created)} and with body the new ${entityVarName}DTO
-     */
-    @PostMapping("/${entityApiPath}")
-    @Operation(summary = "Create a new ${entityName}")
-    @ApiResponses(
-        ApiResponse(responseCode = "201", description = "${entityName} created successfully",
-            content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
-        ApiResponse(responseCode = "400", description = "Invalid input")
-    )
-    fun create${entityName}(@Valid @RequestBody ${entityVarName}DTO: ${dtoName}): ResponseEntity<${dtoName}> {
-        log.debug("REST request to save ${entityName} : {}", ${entityVarName}DTO)
-        if (${entityVarName}DTO.id != null) {
-            return ResponseEntity.badRequest()
-                .body(null)
-        }
-        val result = ${serviceVarName}.save(${entityVarName}DTO)
-        return ResponseEntity
-            .status(HttpStatus.CREATED)
-            .body(result)
+    companion object {
+        private const val ENTITY_NAME = "${entityNameLower}"
     }
 
     /**
-     * {@code PUT  /${entityApiPath}} : Updates an existing ${entityName}.
+     * `POST  /api/${entityApiPath}` : Create a new ${entityNameLower}.
      *
-     * @param ${entityVarName}DTO the ${entityVarName}DTO to update
-     * @return the [ResponseEntity] with status {@code 200 (OK)} and with body the updated ${entityVarName}DTO
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to create
+     * @return the [ResponseEntity] with status `201 (Created)` and with body the new ${entityNameLower}DTO
      */
-    @PutMapping("/${entityApiPath}")
-    @Operation(summary = "Update an existing ${entityName}")
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "${entityName} updated successfully",
-            content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
+    @PostMapping
+    @Operation(summary = "Create a new ${entityNameLower}", description = "Create a new ${entityNameLower}")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "201", description = "${entityName} created successfully"),
+        ApiResponse(responseCode = "400", description = "Invalid input")
+    ])
+    fun create${entityName}(@Valid @RequestBody ${entityNameLower}DTO: ${dtoName}): ResponseEntity<${dtoName}> {
+        log.debug("REST request to save ${entityName} : {}", ${entityNameLower}DTO)
+        if (${entityNameLower}DTO.id != null) {
+            return ResponseEntity.badRequest().build()
+        }
+        val result = ${serviceVarName}.save(${entityNameLower}DTO)
+        return ResponseEntity.created(URI("/api/${entityApiPath}/${'$'}{result.id}")).body(result)
+    }
+
+    /**
+     * `PUT  /api/${entityApiPath}/:id` : Updates an existing ${entityNameLower}.
+     *
+     * @param id the id of the ${entityNameLower}DTO to save
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to update
+     * @return the [ResponseEntity] with status `200 (OK)` and with body the updated ${entityNameLower}DTO
+     */
+    @PutMapping("/{id}")
+    @Operation(summary = "Update a ${entityNameLower}", description = "Update an existing ${entityNameLower}")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "${entityName} updated successfully"),
         ApiResponse(responseCode = "400", description = "Invalid input"),
         ApiResponse(responseCode = "404", description = "${entityName} not found")
-    )
-    fun update${entityName}(@Valid @RequestBody ${entityVarName}DTO: ${dtoName}): ResponseEntity<${dtoName}> {
-        log.debug("REST request to update ${entityName} : {}", ${entityVarName}DTO)
-        if (${entityVarName}DTO.id == null) {
-            return ResponseEntity.badRequest().body(null)
+    ])
+    fun update${entityName}(
+        @Parameter(description = "ID of the ${entityNameLower} to update")
+        @PathVariable(value = "id", required = false) id: Long?,
+        @Valid @RequestBody ${entityNameLower}DTO: ${dtoName}
+    ): ResponseEntity<${dtoName}> {
+        log.debug("REST request to update ${entityName} : {}, {}", id, ${entityNameLower}DTO)
+
+        if (${entityNameLower}DTO.id == null) {
+            return ResponseEntity.badRequest().build()
         }
-        val result = ${serviceVarName}.update(${entityVarName}DTO)
-        return ResponseEntity.ok()
-            .body(result)
+        if (id != ${entityNameLower}DTO.id) {
+            return ResponseEntity.badRequest().build()
+        }
+        if (!${serviceVarName}.existsById(id!!)) {
+            return ResponseEntity.notFound().build()
+        }
+
+        val result = ${serviceVarName}.update(${entityNameLower}DTO)
+        return ResponseEntity.ok().body(result)
     }
 
     /**
-     * {@code GET  /${entityApiPath}} : get all the ${entityVarName}s.
+     * `PATCH  /api/${entityApiPath}/:id` : Partial updates given fields of an existing ${entityNameLower}.
+     *
+     * @param id the id of the ${entityNameLower}DTO to save
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to update
+     * @return the [ResponseEntity] with status `200 (OK)` and with body the updated ${entityNameLower}DTO
+     */
+    @PatchMapping(value = ["/{id}"], consumes = ["application/json", "application/merge-patch+json"])
+    @Operation(summary = "Partially update a ${entityNameLower}", description = "Partially update an existing ${entityNameLower}")
+    fun partialUpdate${entityName}(
+        @Parameter(description = "ID of the ${entityNameLower} to update")
+        @PathVariable(value = "id", required = false) id: Long?,
+        @RequestBody ${entityNameLower}DTO: ${dtoName}
+    ): ResponseEntity<${dtoName}> {
+        log.debug("REST request to partial update ${entityName} : {}, {}", id, ${entityNameLower}DTO)
+
+        if (${entityNameLower}DTO.id == null) {
+            return ResponseEntity.badRequest().build()
+        }
+        if (id != ${entityNameLower}DTO.id) {
+            return ResponseEntity.badRequest().build()
+        }
+        if (!${serviceVarName}.existsById(id!!)) {
+            return ResponseEntity.notFound().build()
+        }
+
+        val result = ${serviceVarName}.partialUpdate(${entityNameLower}DTO)
+        return result.map { ResponseEntity.ok().body(it) }
+            .orElse(ResponseEntity.notFound().build())
+    }
+
+    /**
+     * `GET  /api/${entityApiPath}` : get all the ${entityNameLower}s.
      *
      * @param pageable the pagination information
-     * @return the [ResponseEntity] with status {@code 200 (OK)} and the list of ${entityVarName}s in body
+     * @return the [ResponseEntity] with status `200 (OK)` and the list of ${entityNameLower}s in body
      */
-    @GetMapping("/${entityApiPath}")
-    @Operation(summary = "Get all ${entityName}s")
-    fun getAll${entityName}s(pageable: Pageable): ResponseEntity<Page<${dtoName}>> {
+    @GetMapping
+    @Operation(summary = "Get all ${entityNameLower}s", description = "Get all ${entityNameLower}s with pagination")
+    @ApiResponse(responseCode = "200", description = "Successful operation")
+    fun getAll${entityName}s(@Parameter(hidden = true) pageable: Pageable): ResponseEntity<List<${dtoName}>> {
         log.debug("REST request to get a page of ${entityName}s")
         val page = ${serviceVarName}.findAll(pageable)
-        return ResponseEntity.ok().body(page)
+        return ResponseEntity.ok().body(page.content)
     }
 
     /**
-     * {@code GET  /${entityApiPath}/{id}} : get the "id" ${entityName}.
+     * `GET  /api/${entityApiPath}/:id` : get the "id" ${entityNameLower}.
      *
-     * @param id the id of the ${entityVarName}DTO to retrieve
-     * @return the [ResponseEntity] with status {@code 200 (OK)} and with body the ${entityVarName}DTO,
-     * or with status {@code 404 (Not Found)}
+     * @param id the id of the ${entityNameLower}DTO to retrieve
+     * @return the [ResponseEntity] with status `200 (OK)` and with body the ${entityNameLower}DTO, or with status `404 (Not Found)`
      */
-    @GetMapping("/${entityApiPath}/{id}")
-    @Operation(summary = "Get a specific ${entityName} by id")
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "${entityName} found",
-            content = [Content(mediaType = "application/json", schema = Schema(implementation = ${dtoName}::class))]),
+    @GetMapping("/{id}")
+    @Operation(summary = "Get a ${entityNameLower} by ID", description = "Get a specific ${entityNameLower} by its ID")
+    @ApiResponses(value = [
+        ApiResponse(responseCode = "200", description = "${entityName} found"),
         ApiResponse(responseCode = "404", description = "${entityName} not found")
-    )
-    fun get${entityName}(@PathVariable id: ${idType!"Long"}): ResponseEntity<${dtoName}> {
+    ])
+    fun get${entityName}(
+        @Parameter(description = "ID of the ${entityNameLower} to retrieve")
+        @PathVariable id: Long
+    ): ResponseEntity<${dtoName}> {
         log.debug("REST request to get ${entityName} : {}", id)
-        val ${entityVarName}DTO = ${serviceVarName}.findOne(id)
-        return ResponseEntity.ok().body(${entityVarName}DTO)
+        val ${entityNameLower}DTO = ${serviceVarName}.findOne(id)
+        return ${entityNameLower}DTO.map { ResponseEntity.ok().body(it) }
+            .orElse(ResponseEntity.notFound().build())
     }
 
     /**
-     * {@code DELETE  /${entityApiPath}/{id}} : delete the "id" ${entityName}.
+     * `DELETE  /api/${entityApiPath}/:id` : delete the "id" ${entityNameLower}.
      *
-     * @param id the id of the ${entityVarName}DTO to delete
-     * @return the [ResponseEntity] with status {@code 204 (NO_CONTENT)}
+     * @param id the id of the ${entityNameLower}DTO to delete
+     * @return the [ResponseEntity] with status `204 (NO_CONTENT)`
      */
-    @DeleteMapping("/${entityApiPath}/{id}")
-    @Operation(summary = "Delete a ${entityName}")
-    @ApiResponses(
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a ${entityNameLower}", description = "Delete a ${entityNameLower} by its ID")
+    @ApiResponses(value = [
         ApiResponse(responseCode = "204", description = "${entityName} deleted successfully"),
         ApiResponse(responseCode = "404", description = "${entityName} not found")
-    )
-    fun delete${entityName}(@PathVariable id: ${idType!"Long"}): ResponseEntity<Void> {
+    ])
+    fun delete${entityName}(
+        @Parameter(description = "ID of the ${entityNameLower} to delete")
+        @PathVariable id: Long
+    ): ResponseEntity<Void> {
         log.debug("REST request to delete ${entityName} : {}", id)
         ${serviceVarName}.delete(id)
         return ResponseEntity.noContent().build()

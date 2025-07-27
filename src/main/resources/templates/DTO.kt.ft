@@ -1,29 +1,30 @@
 package ${packageName}
 
-import java.time.LocalDateTime
-import javax.validation.constraints.*
-<#if imports??>
-${imports}
+import java.io.Serializable
+<#if hasValidationDependency?? && hasValidationDependency>
+import jakarta.validation.constraints.*
+</#if>
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
 </#if>
 
 /**
- * DTO for the ${entityName} entity
+ * A DTO for the ${entityName} entity.
  */
 data class ${dtoName}(
-<#if dtoFields??>
+<#if dtoFields?? && dtoFields != "">
 ${dtoFields}
-<#elseif fields??>
-<#list fields as field>
-    <#if !field.nullable>@NotNull</#if>
-    val ${field.name}: ${field.type}<#if field.nullable>?</#if><#if field_has_next>,</#if>
-</#list>
 <#else>
-    val id: Long? = null
+    // No fields defined
+    val id: ${idType}? = null
 </#if>
-) {
+) : Serializable {
+
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+
 <#if customMethods?? && customMethods != "">
 ${customMethods}
-<#else>
-    // Custom methods can be added here
 </#if>
 }

@@ -1,98 +1,90 @@
 package ${packageName}
 
-import org.slf4j.LoggerFactory
+import ${servicePackage}.${serviceName}
+import ${dtoPackage}.${dtoName}
+import ${repositoryPackage}.${repositoryName}
+import ${mapperPackage}.${mapperName}
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.util.Optional
-import javax.persistence.EntityNotFoundException
-<#if imports??>
-${imports}
-</#if>
+import org.slf4j.LoggerFactory
+import java.util.*
 
 /**
- * Service Implementation for managing ${entityName}.
+ * Service Implementation for managing [${entityName}].
  */
 @Service
 @Transactional
-class ${serviceImplName!"${entityName}ServiceImpl"}(
+class ${serviceImplName}(
     private val ${repositoryVarName}: ${repositoryName},
     private val ${mapperVarName}: ${mapperName}
 ) : ${serviceName} {
 
-    private val log = LoggerFactory.getLogger(${serviceImplName!"${entityName}ServiceImpl"}::class.java)
+    private val log = LoggerFactory.getLogger(${serviceImplName}::class.java)
 
-    /**
-     * Save a ${entityName}.
-     *
-     * @param ${entityVarName}DTO the entity to save
-     * @return the persisted entity
-     */
-    override fun save(${entityVarName}DTO: ${dtoName}): ${dtoName} {
-        log.debug("Request to save ${entityName} : {}", ${entityVarName}DTO)
-        var ${entityVarName} = ${mapperVarName}.toEntity(${entityVarName}DTO)
-        ${entityVarName} = ${repositoryVarName}.save(${entityVarName})
-        return ${mapperVarName}.toDto(${entityVarName})
+    override fun save(${entityNameLower}DTO: ${dtoName}): ${dtoName} {
+        log.debug("Request to save ${entityName} : {}", ${entityNameLower}DTO)
+        val ${entityNameLower} = ${mapperVarName}.toEntity(${entityNameLower}DTO)
+        val result = ${repositoryVarName}.save(${entityNameLower})
+        return ${mapperVarName}.toDto(result)
     }
 
-    /**
-     * Update a ${entityName}.
-     *
-     * @param ${entityVarName}DTO the entity to update
-     * @return the persisted entity
-     */
-    @Transactional
-    override fun update(${entityVarName}DTO: ${dtoName}): ${dtoName} {
-        log.debug("Request to update ${entityName} : {}", ${entityVarName}DTO)
+    override fun update(${entityNameLower}DTO: ${dtoName}): ${dtoName} {
+        log.debug("Request to update ${entityName} : {}", ${entityNameLower}DTO)
+        val ${entityNameLower} = ${mapperVarName}.toEntity(${entityNameLower}DTO)
+        val result = ${repositoryVarName}.save(${entityNameLower})
+        return ${mapperVarName}.toDto(result)
+    }
 
-        // Verify the entity exists
-        ${entityVarName}DTO.id?.let { id ->
-            if (!${repositoryVarName}.existsById(id)) {
-                throw EntityNotFoundException("${entityName} not found with id $id")
+    override fun partialUpdate(${entityNameLower}DTO: ${dtoName}): Optional<${dtoName}> {
+        log.debug("Request to partially update ${entityName} : {}", ${entityNameLower}DTO)
+
+        return ${repositoryVarName}.findById(${entityNameLower}DTO.id!!)
+            .map { existing${entityName} ->
+                ${mapperVarName}.partialUpdate(existing${entityName}, ${entityNameLower}DTO)
+                existing${entityName}
             }
-        }
-
-        var ${entityVarName} = ${mapperVarName}.toEntity(${entityVarName}DTO)
-        ${entityVarName} = ${repositoryVarName}.save(${entityVarName})
-        return ${mapperVarName}.toDto(${entityVarName})
+            .map { ${repositoryVarName}.save(it) }
+            .map { ${mapperVarName}.toDto(it) }
     }
 
-    /**
-     * Get all the ${entityVarName}s.
-     *
-     * @param pageable the pagination information
-     * @return the list of entities
-     */
+    @Transactional(readOnly = true)
+    override fun findAll(): List<${dtoName}> {
+        log.debug("Request to get all ${entityName}s")
+        return ${repositoryVarName}.findAll()
+            .map { ${mapperVarName}.toDto(it) }
+    }
+
     @Transactional(readOnly = true)
     override fun findAll(pageable: Pageable): Page<${dtoName}> {
-        log.debug("Request to get all ${entityName}s")
+        log.debug("Request to get all ${entityName}s with pagination")
         return ${repositoryVarName}.findAll(pageable)
-            .map(${mapperVarName}::toDto)
+            .map { ${mapperVarName}.toDto(it) }
     }
 
-    /**
-     * Get one ${entityVarName} by id.
-     *
-     * @param id the id of the entity
-     * @return the entity
-     */
     @Transactional(readOnly = true)
-    override fun findOne(id: ${idType!"Long"}): ${dtoName}? {
+    override fun findOne(id: ${idType}): Optional<${dtoName}> {
         log.debug("Request to get ${entityName} : {}", id)
         return ${repositoryVarName}.findById(id)
-            .map(${mapperVarName}::toDto)
-            .orElse(null)
+            .map { ${mapperVarName}.toDto(it) }
     }
 
-    /**
-     * Delete the ${entityVarName} by id.
-     *
-     * @param id the id of the entity
-     */
-    override fun delete(id: ${idType!"Long"}) {
+    override fun delete(id: ${idType}) {
         log.debug("Request to delete ${entityName} : {}", id)
         ${repositoryVarName}.deleteById(id)
+    }
+
+    @Transactional(readOnly = true)
+    override fun count(): Long {
+        log.debug("Request to count ${entityName}s")
+        return ${repositoryVarName}.count()
+    }
+
+    @Transactional(readOnly = true)
+    override fun existsById(id: ${idType}): Boolean {
+        log.debug("Request to check if ${entityName} exists : {}", id)
+        return ${repositoryVarName}.existsById(id)
     }
 
 <#if customMethods?? && customMethods != "">

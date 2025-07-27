@@ -31,13 +31,23 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
             else -> isKotlinProject(project)
         }
 
-        return if (shouldUseKotlin) {
-            baseTemplateName.replace(".java.ft", ".kt.ft")
+        // Si le nom de template contient déjà l'extension, on fait le remplacement
+        return if (baseTemplateName.contains(".java.ft") || baseTemplateName.contains(".kt.ft")) {
+            if (shouldUseKotlin) {
+                baseTemplateName.replace(".java.ft", ".kt.ft")
+            } else {
+                baseTemplateName.replace(".kt.ft", ".java.ft")
+            }
         } else {
-            baseTemplateName
+            // Si c'est juste un nom de base, on ajoute l'extension appropriée
+            if (shouldUseKotlin) {
+                "$baseTemplateName.kt.ft"
+            } else {
+                "$baseTemplateName.java.ft"
+            }
         }
     }
-    
+
     /**
      * Get the base template name (Java version).
      * Subclasses must implement this method.
@@ -143,8 +153,8 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
                 // Create enhanced data model with style information and language support
                 progressIndicator?.text2 = "Creating data model"
                 progressIndicator?.fraction = 0.6
-                val dataModel = createDataModel(entityMetadata, packageConfig, styleAdapter)
-        
+                val dataModel = createDataModel(entityMetadata, packageConfig, project, styleAdapter)
+
                 // Add language-specific data
                 val isKotlinGeneration = forceLanguage?.lowercase() == "kotlin" ||
                     (forceLanguage == null && ProjectTypeDetectionService.shouldGenerateKotlinCode(project))
@@ -175,10 +185,10 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
                 } catch (e: TemplateException) {
                     // Create detailed error message using our custom error handler
                     val detailedErrorMsg = TemplateErrorHandler.createDetailedErrorMessage(e, templateName)
-                    
+
                     // Log the detailed error
                     com.intellij.openapi.diagnostic.Logger.getInstance(javaClass).error(detailedErrorMsg, e)
-                    
+
                     // Provide a more helpful error message to the user
                     throw RuntimeException(
                         """
@@ -256,10 +266,56 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
     }
 
     /**
+     * Create the data model for the template with project context for dependency checking.
+     */
+    protected open fun createDataModel(entityMetadata: EntityMetadata, packageConfig: Map<String, String>, project: Project): MutableMap<String, Any> {
+        val model = createDataModel(entityMetadata, packageConfig)
+
+        // Add dependency validation information
+        model["hasValidationDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "validation")
+        model["hasSwaggerDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "swagger")
+        model["hasSecurityDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "security")
+        model["hasGraphQLDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "graphql")
+        model["hasMapStructDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "mapstruct")
+
+        return model
+    }
+
+    /**
      * Create the data model for the template with style adapter support.
      */
     protected open fun createDataModel(entityMetadata: EntityMetadata, packageConfig: Map<String, String>, styleAdapter: CodeStyleAdapter): MutableMap<String, Any> {
         val model = createDataModel(entityMetadata, packageConfig)
+
+        // Add style-aware helpers to the template context
+        model["styleAdapter"] = styleAdapter
+        model["indent"] = styleAdapter.getIndentation()
+        model["indent2"] = styleAdapter.getIndentation(2)
+        model["indent3"] = styleAdapter.getIndentation(3)
+
+        // Add style-adapted field and method names
+        val adaptedFields = entityMetadata.fields.map { field ->
+            mapOf(
+                "name" to field.name,
+                "adaptedName" to styleAdapter.adaptFieldName(field.name),
+                "type" to field.type,
+                "getterName" to styleAdapter.formatGetterName(field.name, field.type == "Boolean"),
+                "setterName" to styleAdapter.formatSetterName(field.name),
+                "nullable" to field.nullable,
+                "columnName" to field.columnName,
+                "relationType" to field.relationType
+            )
+        }
+        model["adaptedFields"] = adaptedFields
+
+        return model
+    }
+
+    /**
+     * Create the data model for the template with project context and style adapter support.
+     */
+    protected open fun createDataModel(entityMetadata: EntityMetadata, packageConfig: Map<String, String>, project: Project, styleAdapter: CodeStyleAdapter): MutableMap<String, Any> {
+        val model = createDataModel(entityMetadata, packageConfig, project)
 
         // Add style-aware helpers to the template context
         model["styleAdapter"] = styleAdapter

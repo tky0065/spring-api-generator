@@ -420,12 +420,17 @@ class EnhancedTemplateEngine(private val project: Project) {
         }
     }
 
-    private fun generateRepositoryMethodsFragment(entityMetadata: EntityMetadata): String {
-        return """
+    private fun generateRepositoryMethodsFragment(entityMetadata: EntityMetadata, generateCustomQueryMethods: Boolean = false): String {
+        return if (generateCustomQueryMethods) {
+            """
             List<${entityMetadata.className}> findByNameContaining(String name);
             Optional<${entityMetadata.className}> findByEmail(String email);
             void deleteByName(String name);
-        """.trimIndent()
+            """.trimIndent()
+        } else {
+            // Retourne seulement les méthodes de base si les méthodes personnalisées sont désactivées
+            ""
+        }
     }
 
     private fun generateServiceMethodsFragment(entityMetadata: EntityMetadata): String {

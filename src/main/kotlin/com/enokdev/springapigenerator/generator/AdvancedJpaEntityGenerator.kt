@@ -544,7 +544,7 @@ class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
 
         return model
     }
-    
+
     /**
      * Collects imports needed for validation annotations.
      */
@@ -553,46 +553,46 @@ class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
         crossFieldValidations: List<CrossFieldValidation>
     ): Set<String> {
         val imports = mutableSetOf<String>()
-        
+
         // Basic validation imports
         imports.add("javax.validation.constraints.*")
-        
+
         // Add imports for specific validation types
         val allAnnotations = fieldValidations.values.flatten().map { it.type }
-        
+
         if (allAnnotations.any { it.contains("Email") }) {
             imports.add("javax.validation.constraints.Email")
         }
-        
+
         if (allAnnotations.any { it.contains("Pattern") }) {
             imports.add("javax.validation.constraints.Pattern")
         }
-        
+
         if (allAnnotations.any { it.contains("Future") || it.contains("Past") }) {
             imports.add("javax.validation.constraints.Future")
             imports.add("javax.validation.constraints.Past")
         }
-        
+
         if (allAnnotations.any { it.contains("Min") || it.contains("Max") }) {
             imports.add("javax.validation.constraints.Min")
             imports.add("javax.validation.constraints.Max")
         }
-        
+
         if (allAnnotations.any { it.contains("DecimalMin") || it.contains("DecimalMax") }) {
             imports.add("javax.validation.constraints.DecimalMin")
             imports.add("javax.validation.constraints.DecimalMax")
         }
-        
+
         if (allAnnotations.any { it.contains("Positive") || it.contains("Negative") }) {
             imports.add("javax.validation.constraints.Positive")
             imports.add("javax.validation.constraints.Negative")
         }
-        
+
         // Add imports for cross-field validations
         if (crossFieldValidations.isNotEmpty()) {
             imports.add("javax.validation.Valid")
         }
-        
+
         return imports
     }
 
@@ -640,10 +640,10 @@ class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
                 isMappedSuperclass = entityMetadata.className.contains("Base")
             )
         } else null
-        
+
         // Create mock attribute converters based on field types
         val customConverters = mutableListOf<AttributeConverter>()
-        
+
         // Look for fields that might use converters
         entityMetadata.fields.forEach { field ->
             when {
@@ -658,7 +658,7 @@ class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
                         )
                     )
                 }
-                
+
                 // JSON data often uses converters
                 field.type.contains("Map") || field.type.contains("List") || field.name.contains("json") || field.name.contains("data") -> {
                     customConverters.add(
@@ -670,7 +670,7 @@ class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
                         )
                     )
                 }
-                
+
                 // Boolean fields might use Y/N converters
                 field.type == "Boolean" && (field.name.contains("flag") || field.name.contains("indicator")) -> {
                     customConverters.add(
@@ -682,7 +682,7 @@ class AdvancedJpaEntityGenerator : IncrementalCodeGenerator() {
                         )
                     )
                 }
-                
+
                 // Date fields might use custom formats
                 field.type.contains("Date") || field.type.contains("Time") -> {
                     customConverters.add(

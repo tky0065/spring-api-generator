@@ -1,27 +1,29 @@
 package ${packageName}
 
+import ${domainPackage}.${entityName}
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.stereotype.Repository
-<#if imports??>
-${imports}
+<#if customQueryMethods?? && customQueryMethods != "" && customQueryMethods?contains("@Query")>
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
+</#if>
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
 </#if>
 
 /**
- * Repository for the ${entityName} entity
+ * Spring Data JPA repository for the ${entityName} entity.
  */
 @Repository
-interface ${repositoryName} : JpaRepository<${entityName}, ${idType!"Long"}> {
-    // Custom query methods
+interface ${repositoryName} : JpaRepository<${entityName}, ${idType}> {
 
+    // Basic query methods
     fun findAllByOrderByIdDesc(pageable: Pageable): Page<${entityName}>
 
 <#if customQueryMethods?? && customQueryMethods != "">
+    // Custom query methods
 ${customQueryMethods}
-</#if>
-
-<#if customMethods?? && customMethods != "">
-${customMethods}
 </#if>
 }

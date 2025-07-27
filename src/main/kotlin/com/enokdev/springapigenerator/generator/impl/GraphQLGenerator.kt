@@ -18,7 +18,15 @@ import java.util.*
 class GraphQLGenerator : AbstractTemplateCodeGenerator() {
 
     override fun getBaseTemplateName(): String {
-        return "GraphQLSchema.graphqls.ft"
+        return "GraphQLSchema.graphqls"
+    }
+
+    /**
+     * Override template name logic for GraphQL since it's language-independent
+     */
+    override fun getTemplateName(project: Project, forceLanguage: String?): String {
+        // GraphQL schemas are language-independent, so we always use the .ft extension
+        return "${getBaseTemplateName()}.ft"
     }
 
     /**
@@ -58,6 +66,12 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator() {
         model["fields"] = entityMetadata.fields
         model["fieldToGraphQLType"] = fieldToGraphQLType
         model["idType"] = extractSimpleTypeName(entityMetadata.idType)
+
+        // ========== GÉNÉRATION DES CHAMPS GRAPHQL ==========
+        model["graphqlFields"] = generateGraphQLFields(entityMetadata)
+        model["createInputFields"] = generateCreateInputFields(entityMetadata)
+        model["updateInputFields"] = generateUpdateInputFields(entityMetadata)
+        model["additionalTypes"] = generateAdditionalTypes(entityMetadata)
 
         // ========== VARIABLES POUR LES IMPORTS ET MÉTHODES PERSONNALISÉES ==========
         model["imports"] = ""
@@ -261,5 +275,91 @@ class GraphQLGenerator : AbstractTemplateCodeGenerator() {
     private fun getResourceRootDir(project: Project): String {
         val basePath = project.basePath ?: throw RuntimeException("Project base path not found")
         return Paths.get(basePath, "src", "main", "resources").toString()
+    }
+
+    /**
+     * Generate GraphQL fields for the main type.
+     */
+    private fun generateGraphQLFields(entityMetadata: EntityMetadata): String {
+        val fields = StringBuilder()
+
+        entityMetadata.fields.forEach { field ->
+            val graphqlType = mapJavaTypeToGraphQLType(field.type)
+            val fieldType = if (field.nullable) graphqlType else "$graphqlType!"
+
+            // Add field with optional description
+            fields.append("    ${field.name}: $fieldType")
+            if (field != entityMetadata.fields.last()) {
+                fields.append("\n")
+            }
+        }
+
+        return fields.toString()
+    }
+
+    /**
+     * Generate input fields for create operations.
+     */
+    private fun generateCreateInputFields(entityMetadata: EntityMetadata): String {
+        val fields = StringBuilder()
+
+        entityMetadata.fields.forEach { field ->
+            // Skip ID field for create operations
+            if (field.name.lowercase() != "id") {
+                val graphqlType = mapJavaTypeToGraphQLType(field.type)
+                val fieldType = if (field.nullable) graphqlType else "$graphqlType!"
+
+                fields.append("    ${field.name}: $fieldType")
+                if (field != entityMetadata.fields.last()) {
+                    fields.append("\n")
+                }
+            }
+        }
+
+        return fields.toString()
+    }
+
+    /**
+     * Generate input fields for update operations.
+     */
+    private fun generateUpdateInputFields(entityMetadata: EntityMetadata): String {
+        val fields = StringBuilder()
+
+        entityMetadata.fields.forEach { field ->
+            // All fields are optional for updates (except ID which is passed separately)
+            if (field.name.lowercase() != "id") {
+                val graphqlType = mapJavaTypeToGraphQLType(field.type)
+
+                fields.append("    ${field.name}: $graphqlType")
+                if (field != entityMetadata.fields.last()) {
+                    fields.append("\n")
+                }
+            }
+        }
+
+        return fields.toString()
+    }
+
+    /**
+     * Generate additional GraphQL types for relationships.
+     */
+    private fun generateAdditionalTypes(entityMetadata: EntityMetadata): String {
+        val types = StringBuilder()
+
+        // Generate types for related entities if any
+        entityMetadata.fields.forEach { field ->
+            if (field.relationType != com.enokdev.springapigenerator.model.RelationType.NONE) {
+                val relatedTypeName = field.relationTargetSimpleName
+                if (relatedTypeName != null && !relatedTypeName.equals(entityMetadata.className)) {
+                    types.append("\n# Placeholder type for ${relatedTypeName}")
+                    types.append("\ntype ${relatedTypeName} {")
+                    types.append("\n    id: ID!")
+                    types.append("\n    # Add other fields as needed")
+                    types.append("\n}\n")
+                }
+            }
+        }
+
+        return types.toString()
     }
 }

@@ -1,85 +1,246 @@
-package ${packageName}.controller;
+package ${packageName};
 
-import ${packageName}.dto.${entityName}DTO;
-import ${packageName}.service.${entityName}Service;
+import ${dtoPackage}.${entityName}DTO;
+import ${servicePackage}.${entityName}Service;
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+</#if>
+<#if hasValidationDependency?? && hasValidationDependency>
+import jakarta.validation.Valid;
+</#if>
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+<#if additionalImports?? && additionalImports != "">
+${additionalImports}
+</#if>
 
 /**
- * REST Controller for managing ${entityName} entities.
+ * REST Controller for managing {@link ${entityName}} entities.
  */
 @RestController
-@RequestMapping("/api/${entityNameLower}s")
-public class ${entityName}Controller {
+@RequestMapping("/api/${entityApiPath}")
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
+@Tag(name = "${entityName}s", description = "The ${entityName} API")
+</#if>
+public class ${controllerName} {
 
-    private final ${entityName}Service ${entityNameLower}Service;
+    private final Logger log = LoggerFactory.getLogger(${controllerName}.class);
+
+    private static final String ENTITY_NAME = "${entityNameLower}";
+
+    private final ${serviceName} ${serviceVarName};
 
     @Autowired
-    public ${entityName}Controller(${entityName}Service ${entityNameLower}Service) {
-        this.${entityNameLower}Service = ${entityNameLower}Service;
+    public ${controllerName}(${serviceName} ${serviceVarName}) {
+        this.${serviceVarName} = ${serviceVarName};
     }
 
     /**
-     * GET /api/${entityNameLower}s : Get all ${entityName}s.
+     * {@code POST  /api/${entityApiPath}} : Create a new ${entityNameLower}.
      *
-     * @return the ResponseEntity with status 200 (OK) and the list of ${entityNameLower}s in body
-     */
-    @GetMapping
-    public ResponseEntity<List<${entityName}DTO>> getAll${entityName}s() {
-        List<${entityName}DTO> list = ${entityNameLower}Service.findAll();
-        return new ResponseEntity<>(list, HttpStatus.OK);
-    }
-
-    /**
-     * GET /api/${entityNameLower}s/{id} : Get the ${entityNameLower} by id.
-     *
-     * @param id the id of the ${entityNameLower} to retrieve
-     * @return the ResponseEntity with status 200 (OK) and with body the ${entityNameLower}DTO, or with status 404 (Not Found)
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<${entityName}DTO> get${entityName}(@PathVariable ${idType} id) {
-        ${entityName}DTO ${entityNameLower}DTO = ${entityNameLower}Service.findOne(id);
-        return ResponseEntity.ok(${entityNameLower}DTO);
-    }
-
-    /**
-     * POST /api/${entityNameLower}s : Create a new ${entityNameLower}.
-     *
-     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to create
-     * @return the ResponseEntity with status 201 (Created) and with body the new ${entityNameLower}DTO
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to create.
+     * @return the {@link ResponseEntity} with status {@code 201 (Created)} and with body the new ${entityNameLower}DTO, or with status {@code 400 (Bad Request)} if the ${entityNameLower} has already an ID.
+     * @throws URISyntaxException if the Location URI syntax is incorrect.
      */
     @PostMapping
-    public ResponseEntity<${entityName}DTO> create${entityName}(@RequestBody ${entityName}DTO ${entityNameLower}DTO) {
-        ${entityName}DTO result = ${entityNameLower}Service.save(${entityNameLower}DTO);
-        return new ResponseEntity<>(result, HttpStatus.CREATED);
+    @Operation(
+        summary = "Create a new ${entityNameLower}", description = "Create a new ${entityNameLower}"
+    )
+    @ApiResponses(
+        value = {
+        @ApiResponse(responseCode = "201", description = "${entityName} created successfully"
+    ),
+        @ApiResponse(
+        responseCode = "400", description = "Invalid input"
+    )
+    })
+    public ResponseEntity<${dtoName}> create${entityName}(@Valid @RequestBody ${dtoName} ${entityNameLower}DTO) throws URISyntaxException {
+        log.debug("REST request to save ${entityName} : {}", ${entityNameLower}DTO);
+        if (${entityNameLower}DTO.getId() != null) {
+            return ResponseEntity.badRequest().build();
+        }
+        ${dtoName} result = ${serviceVarName}.save(${entityNameLower}DTO);
+        return ResponseEntity
+            .created(new URI("/api/${entityApiPath}/" + result.getId()))
+            .body(result);
     }
 
     /**
-     * PUT /api/${entityNameLower}s : Updates an existing ${entityNameLower}.
+     * {@code PUT  /api/${entityApiPath}/:id} : Updates an existing ${entityNameLower}.
      *
-     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to update
-     * @return the ResponseEntity with status 200 (OK) and with body the updated ${entityNameLower}DTO
+     * @param id the id of the ${entityNameLower}DTO to save.
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to update.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated ${entityNameLower}DTO,
+     * or with status {@code 400 (Bad Request)} if the ${entityNameLower}DTO is not valid,
+     * or with status {@code 500 (Internal Server Error)} if the ${entityNameLower}DTO couldn't be updated.
      */
     @PutMapping("/{id}")
-    public ResponseEntity<${entityName}DTO> update${entityName}(@PathVariable ${idType} id, @RequestBody ${entityName}DTO ${entityNameLower}DTO) {
-        ${entityNameLower}DTO.setId(id);
-        ${entityName}DTO result = ${entityNameLower}Service.update(${entityNameLower}DTO);
-        return ResponseEntity.ok(result);
+    @Operation(
+        summary = "Update a ${entityNameLower}", description = "Update an existing ${entityNameLower}"
+    )
+    @ApiResponses(
+        value = {
+        @ApiResponse(responseCode = "200", description = "${entityName} updated successfully"
+    ),
+        @ApiResponse(
+        responseCode = "400", description = "Invalid input"
+    ),
+        @ApiResponse(
+        responseCode = "404", description = "${entityName} not found"
+    )
+    })
+    public ResponseEntity<${dtoName}> update${entityName}(
+        @Parameter(
+        description = "ID of the ${entityNameLower} to update"
+    ) @PathVariable(value = "id", required = false) final Long id,
+        @Valid @RequestBody ${dtoName} ${entityNameLower}DTO
+    ) {
+        log.debug("REST request to update ${entityName} : {}, {}", id, ${entityNameLower}DTO);
+        if (${entityNameLower}DTO.getId() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (!Objects.equals(id, ${entityNameLower}DTO.getId())) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!${serviceVarName}.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ${dtoName} result = ${serviceVarName}.update(${entityNameLower}DTO);
+        return ResponseEntity.ok().body(result);
     }
 
     /**
-     * DELETE /api/${entityNameLower}s/{id} : delete the "id" ${entityNameLower}.
+     * {@code PATCH  /api/${entityApiPath}/:id} : Partial updates given fields of an existing ${entityNameLower}, field will ignore if it is null
      *
-     * @param id the id of the ${entityNameLower} to delete
-     * @return the ResponseEntity with status 204 (NO_CONTENT)
+     * @param id the id of the ${entityNameLower}DTO to save.
+     * @param ${entityNameLower}DTO the ${entityNameLower}DTO to update.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated ${entityNameLower}DTO,
+     * or with status {@code 400 (Bad Request)} if the ${entityNameLower}DTO is not valid,
+     * or with status {@code 404 (Not Found)} if the ${entityNameLower}DTO is not found,
+     * or with status {@code 500 (Internal Server Error)} if the ${entityNameLower}DTO couldn't be updated.
+     */
+    @PatchMapping(
+        value = "/{id}", consumes = { "application/json", "application/merge-patch+json" }
+    )
+    @Operation(
+        summary = "Partially update a ${entityNameLower}", description = "Partially update an existing ${entityNameLower}"
+    )
+    public ResponseEntity<${dtoName}> partialUpdate${entityName}(
+        @Parameter(
+        description = "ID of the ${entityNameLower} to update"
+    ) @PathVariable(value = "id", required = false) final Long id,
+        @RequestBody ${dtoName} ${entityNameLower}DTO
+    ) {
+        log.debug("REST request to partial update ${entityName} partially : {}, {}", id, ${entityNameLower}DTO);
+        if (${entityNameLower}DTO.getId() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (!Objects.equals(id, ${entityNameLower}DTO.getId())) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!${serviceVarName}.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Optional<${dtoName}> result = ${serviceVarName}.partialUpdate(${entityNameLower}DTO);
+
+        return result
+            .map(response -> ResponseEntity.ok().body(response))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * {@code GET  /api/${entityApiPath}} : get all the ${entityNameLower}s.
+     *
+     * @param pageable the pagination information.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of ${entityNameLower}s in body.
+     */
+    @GetMapping
+    @Operation(
+        summary = "Get all ${entityNameLower}s", description = "Get all ${entityNameLower}s with pagination"
+    )
+    @ApiResponse(
+        responseCode = "200", description = "Successful operation"
+    )
+    public ResponseEntity<List<${dtoName}>> getAll${entityName}s(@Parameter(hidden = true) Pageable pageable) {
+        log.debug("REST request to get a page of ${entityName}s");
+        Page<${dtoName}> page = ${serviceVarName}.findAll(pageable);
+        return ResponseEntity.ok().body(page.getContent());
+    }
+
+    /**
+     * {@code GET  /api/${entityApiPath}/:id} : get the "id" ${entityNameLower}.
+     *
+     * @param id the id of the ${entityNameLower}DTO to retrieve.
+     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the ${entityNameLower}DTO, or with status {@code 404 (Not Found)}.
+     */
+    @GetMapping("/{id}")
+    @Operation(
+        summary = "Get a ${entityNameLower} by ID", description = "Get a specific ${entityNameLower} by its ID"
+    )
+    @ApiResponses(
+        value = {
+        @ApiResponse(responseCode = "200", description = "${entityName} found"
+    ),
+        @ApiResponse(
+        responseCode = "404", description = "${entityName} not found"
+    )
+    })
+    public ResponseEntity<${dtoName}> get${entityName}(@Parameter(
+        description = "ID of the ${entityNameLower} to retrieve"
+    ) @PathVariable Long id) {
+        log.debug("REST request to get ${entityName} : {}", id);
+        Optional<${dtoName}> ${entityNameLower}DTO = ${serviceVarName}.findOne(id);
+        return ${entityNameLower}DTO
+            .map(response -> ResponseEntity.ok().body(response))
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * {@code DELETE  /api/${entityApiPath}/:id} : delete the "id" ${entityNameLower}.
+     *
+     * @param id the id of the ${entityNameLower}DTO to delete.
+     * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete${entityName}(@PathVariable ${idType} id) {
-        ${entityNameLower}Service.delete(id);
+    @Operation(
+        summary = "Delete a ${entityNameLower}", description = "Delete a ${entityNameLower} by its ID"
+    )
+    @ApiResponses(
+        value = {
+        @ApiResponse(responseCode = "204", description = "${entityName} deleted successfully"
+    ),
+        @ApiResponse(
+        responseCode = "404", description = "${entityName} not found"
+    )
+    })
+    public ResponseEntity<Void> delete${entityName}(@Parameter(
+        description = "ID of the ${entityNameLower} to delete"
+    ) @PathVariable Long id) {
+        log.debug("REST request to delete ${entityName} : {}", id);
+        ${serviceVarName}.delete(id);
         return ResponseEntity.noContent().build();
     }
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

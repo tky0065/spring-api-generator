@@ -1,17 +1,20 @@
+<#if enableGraphQL?? && enableGraphQL>
 package ${packageName};
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.graphql.execution.RuntimeWiringConfigurer;
 import graphql.schema.GraphQLScalarType;
+import graphql.schema.Coercing;
+import graphql.schema.CoercingParseLiteralException;
+import graphql.schema.CoercingParseValueException;
+import graphql.schema.CoercingSerializeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 /**
  * Configuration class for GraphQL.
- *
- * Generated on ${currentDate?datetime} by Spring API Generator Plugin.
  */
 @Configuration
 public class GraphQLConfig {
@@ -27,66 +30,73 @@ public class GraphQLConfig {
     }
 
     /**
-     * Create a custom Date scalar for GraphQL.
+     * Custom Date scalar for GraphQL.
      */
     private GraphQLScalarType dateScalar() {
         return GraphQLScalarType.newScalar()
             .name("Date")
-            .description("Java LocalDate as scalar")
-            .coercing(new graphql.schema.Coercing<LocalDate, String>() {
+            .description("Date scalar")
+            .coercing(new Coercing<LocalDate, String>() {
                 @Override
-                public String serialize(Object dataFetcherResult) {
+                public String serialize(Object dataFetcherResult) throws CoercingSerializeException {
                     if (dataFetcherResult instanceof LocalDate) {
                         return ((LocalDate) dataFetcherResult).format(DateTimeFormatter.ISO_LOCAL_DATE);
                     }
-                    return null;
+                    throw new CoercingSerializeException("Expected LocalDate");
                 }
 
                 @Override
-                public LocalDate parseValue(Object input) {
+                public LocalDate parseValue(Object input) throws CoercingParseValueException {
                     if (input instanceof String) {
                         return LocalDate.parse((String) input, DateTimeFormatter.ISO_LOCAL_DATE);
                     }
-                    return null;
+                    throw new CoercingParseValueException("Expected String");
                 }
 
                 @Override
-                public LocalDate parseLiteral(Object input) {
-                    return parseValue(input);
+                public LocalDate parseLiteral(Object input) throws CoercingParseLiteralException {
+                    if (input instanceof String) {
+                        return LocalDate.parse((String) input, DateTimeFormatter.ISO_LOCAL_DATE);
+                    }
+                    throw new CoercingParseLiteralException("Expected String literal");
                 }
             })
             .build();
     }
 
     /**
-     * Create a custom DateTime scalar for GraphQL.
+     * Custom DateTime scalar for GraphQL.
      */
     private GraphQLScalarType dateTimeScalar() {
         return GraphQLScalarType.newScalar()
             .name("DateTime")
-            .description("Java LocalDateTime as scalar")
-            .coercing(new graphql.schema.Coercing<LocalDateTime, String>() {
+            .description("DateTime scalar")
+            .coercing(new Coercing<LocalDateTime, String>() {
                 @Override
-                public String serialize(Object dataFetcherResult) {
+                public String serialize(Object dataFetcherResult) throws CoercingSerializeException {
                     if (dataFetcherResult instanceof LocalDateTime) {
                         return ((LocalDateTime) dataFetcherResult).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
                     }
-                    return null;
+                    throw new CoercingSerializeException("Expected LocalDateTime");
                 }
 
                 @Override
-                public LocalDateTime parseValue(Object input) {
+                public LocalDateTime parseValue(Object input) throws CoercingParseValueException {
                     if (input instanceof String) {
                         return LocalDateTime.parse((String) input, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
                     }
-                    return null;
+                    throw new CoercingParseValueException("Expected String");
                 }
 
                 @Override
-                public LocalDateTime parseLiteral(Object input) {
-                    return parseValue(input);
+                public LocalDateTime parseLiteral(Object input) throws CoercingParseLiteralException {
+                    if (input instanceof String) {
+                        return LocalDateTime.parse((String) input, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    }
+                    throw new CoercingParseLiteralException("Expected String literal");
                 }
             })
             .build();
     }
 }
+</#if>

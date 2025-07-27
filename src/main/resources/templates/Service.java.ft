@@ -1,13 +1,15 @@
-package ${packageName}.service;
+package ${packageName};
 
-import ${packageName}.dto.${entityName}DTO;
-
+import ${dtoPackage}.${dtoName};
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
- * Service Interface for managing {@link ${packageName}.entity.${entityName}}.
+ * Service Interface for managing {@link ${entityName}}.
  */
-public interface ${entityName}Service {
+public interface ${serviceName} {
 
     /**
      * Save a ${entityNameLower}.
@@ -15,35 +17,70 @@ public interface ${entityName}Service {
      * @param ${entityNameLower}DTO the entity to save.
      * @return the persisted entity.
      */
-    ${entityName}DTO save(${entityName}DTO ${entityNameLower}DTO);
+    ${dtoName} save(${dtoName} ${entityNameLower}DTO);
 
     /**
-     * Updates a ${entityNameLower}.
+     * Update a ${entityNameLower}.
      *
      * @param ${entityNameLower}DTO the entity to update.
      * @return the persisted entity.
      */
-    ${entityName}DTO update(${entityName}DTO ${entityNameLower}DTO);
+    ${dtoName} update(${dtoName} ${entityNameLower}DTO);
+
+    /**
+     * Partially update a ${entityNameLower}.
+     *
+     * @param ${entityNameLower}DTO the entity to update partially.
+     * @return the persisted entity.
+     */
+    Optional<${dtoName}> partialUpdate(${dtoName} ${entityNameLower}DTO);
 
     /**
      * Get all the ${entityNameLower}s.
      *
      * @return the list of entities.
      */
-    List<${entityName}DTO> findAll();
+    List<${dtoName}> findAll();
 
     /**
-     * Get the "${entityNameLower}" by id.
+     * Get all the ${entityNameLower}s with pagination.
+     *
+     * @param pageable the pagination information.
+     * @return the list of entities.
+     */
+    Page<${dtoName}> findAll(Pageable pageable);
+
+    /**
+     * Get the "id" ${entityNameLower}.
      *
      * @param id the id of the entity.
      * @return the entity.
      */
-    ${entityName}DTO findOne(${idType} id);
+    Optional<${dtoName}> findOne(${idType} id);
 
     /**
-     * Delete the "${entityNameLower}" by id.
+     * Delete the "id" ${entityNameLower}.
      *
      * @param id the id of the entity.
      */
     void delete(${idType} id);
+
+    /**
+     * Count total number of ${entityNameLower}s.
+     *
+     * @return the total count.
+     */
+    long count();
+
+    /**
+     * Check if a ${entityNameLower} exists by id.
+     *
+     * @param id the id to check.
+     * @return true if exists, false otherwise.
+     */
+    boolean existsById(${idType} id);
+
+<#if customMethods?? && customMethods != "">
+${customMethods}
+</#if>
 }

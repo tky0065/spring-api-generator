@@ -31,6 +31,10 @@ class GeneratorConfigDialog(
     private val repositoryCheckbox = JBCheckBox("Repository", true)
     private val mapperCheckbox = JBCheckBox("Mapper", true)
     private val testCheckbox = JBCheckBox("Tests", true)
+
+    // Nouvelle option pour contrôler les Custom Query Methods
+    private val customQueryMethodsCheckbox = JBCheckBox("Generate Custom Query Methods", true)
+
     private val useMapstructCheckbox = JBCheckBox("Use MapStruct 1.6.3", false)
     private val useSwaggerCheckbox = JBCheckBox("Use Swagger/OpenAPI 2.8.9", false)
     private val useOpenApiCheckbox = JBCheckBox("Use OpenAPI 3.0 Documentation", false)
@@ -687,6 +691,21 @@ class GeneratorConfigDialog(
             testCheckbox
         )))
 
+        // Custom Query Methods checkbox (liée au Repository)
+        panel.add(Box.createVerticalStrut(10))
+        panel.add(customQueryMethodsCheckbox.apply {
+            // Désactiver si Repository n'est pas sélectionné
+            isEnabled = repositoryCheckbox.isSelected
+        })
+
+        // Ajouter un listener pour désactiver Custom Query Methods si Repository est désélectionné
+        repositoryCheckbox.addChangeListener {
+            customQueryMethodsCheckbox.isEnabled = repositoryCheckbox.isSelected
+            if (!repositoryCheckbox.isSelected) {
+                customQueryMethodsCheckbox.isSelected = false
+            }
+        }
+
         // MapStruct checkbox
         panel.add(Box.createVerticalStrut(10))
         panel.add(useMapstructCheckbox)
@@ -1080,5 +1099,12 @@ class GeneratorConfigDialog(
      */
     fun shouldGenerateAdvancedJpa(): Boolean {
         return enableAdvancedJpaCheckbox.isSelected && enableAdvancedJpaCheckbox.isEnabled
+    }
+
+    /**
+     * Check if Custom Query Methods should be generated
+     */
+    fun shouldGenerateCustomQueryMethods(): Boolean {
+        return repositoryCheckbox.isSelected && customQueryMethodsCheckbox.isSelected
     }
 }
