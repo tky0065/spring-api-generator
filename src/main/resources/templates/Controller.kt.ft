@@ -19,7 +19,12 @@ import java.util.*
  * REST controller for managing ${entityName}.
  */
 @RestController
+<#-- Utiliser une logique de fallback pour éviter @rest -->
+<#if entityApiPath?? && entityApiPath != "@rest" && entityApiPath?trim != "">
 @RequestMapping("/api/${entityApiPath}")
+<#else>
+@RequestMapping("/api/${entityName?lower_case}")
+</#if>
 @Tag(name = "${entityName}s", description = "The ${entityName} API")
 class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
 

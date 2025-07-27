@@ -127,7 +127,7 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator() {
         entityMetadata.fields.forEach { field ->
             if (!field.isCollection && field.name != "id") {
                 val fieldNameCapitalized = field.name.replaceFirstChar { it.uppercase() }
-                
+
                 when (field.simpleTypeName) {
                     "String" -> {
                         if (isKotlinProject) {

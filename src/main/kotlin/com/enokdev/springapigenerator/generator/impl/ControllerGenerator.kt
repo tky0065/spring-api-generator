@@ -53,13 +53,26 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
     private fun injectControllerAnnotations(code: String, entityMetadata: EntityMetadata): String {
         val className = "${entityMetadata.className}Controller"
 
-        // Calculer le chemin API de manière sécurisée
-        val apiPath = entityMetadata.entityNameLower.lowercase()
-            .replace("@rest", entityMetadata.className.lowercase())
-            .replace("@", "")
-            .trim()
-            .takeIf { it.isNotBlank() && !it.contains("@") && !it.contains("{") && !it.contains("}") }
-            ?: entityMetadata.className.lowercase()
+        // Debug logging pour identifier le problème
+        println("DEBUG: injectControllerAnnotations called")
+        println("  - entityMetadata.className: '${entityMetadata.className}'")
+        println("  - entityMetadata.entityNameLower: '${entityMetadata.entityNameLower}'")
+        println("  - entityMetadata.qualifiedClassName: '${entityMetadata.qualifiedClassName}'")
+
+        // Calculer le chemin API de manière sécurisée - fallback immédiat si problème détecté
+        val apiPath = if (entityMetadata.entityNameLower.contains("@") || entityMetadata.entityNameLower.isBlank()) {
+            // Problème détecté - utiliser le nom de classe directement
+            val fallbackPath = entityMetadata.className.lowercase()
+            println("  - FALLBACK: entityNameLower contains '@' or is blank, using className: '$fallbackPath'")
+            fallbackPath
+        } else {
+            // Valeur normale
+            val normalPath = entityMetadata.entityNameLower.lowercase()
+            println("  - NORMAL: using entityNameLower: '$normalPath'")
+            normalPath
+        }
+
+        println("  - Final API path: '/api/$apiPath'")
 
         // Chercher la déclaration de classe
         val classPattern = Regex("(public\\s+)?class\\s+$className", RegexOption.MULTILINE)
@@ -74,12 +87,19 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
 
             if (hasRestController && hasRequestMapping) {
                 // Annotations déjà présentes
+                println("  - Annotations already present, skipping injection")
                 classDeclaration
             } else {
                 // Injecter les annotations manquantes avec le chemin API corrigé
                 val annotations = buildString {
-                    if (!hasRestController) append("@RestController\n")
-                    if (!hasRequestMapping) append("@RequestMapping(\"/api/$apiPath\")\n")
+                    if (!hasRestController) {
+                        append("@RestController\n")
+                        println("  - Injecting @RestController")
+                    }
+                    if (!hasRequestMapping) {
+                        append("@RequestMapping(\"/api/$apiPath\")\n")
+                        println("  - Injecting @RequestMapping(\"/api/$apiPath\")")
+                    }
                 }
                 "$annotations$classDeclaration"
             }
@@ -96,7 +116,15 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         model["controllerName"] = "${entityMetadata.className}Controller"
         model["className"] = entityMetadata.className
         model["entityName"] = entityMetadata.className
-        model["entityNameLower"] = entityMetadata.entityNameLower
+
+        // CORRECTION CRITIQUE : S'assurer que entityNameLower ne contient jamais @rest
+        val safeEntityNameLower = if (entityMetadata.entityNameLower.contains("@") || entityMetadata.entityNameLower.isBlank()) {
+            entityMetadata.className.replaceFirstChar { it.lowercase() }
+        } else {
+            entityMetadata.entityNameLower
+        }
+
+        model["entityNameLower"] = safeEntityNameLower
         model["serviceName"] = "${entityMetadata.className}Service"
         model["dtoName"] = "${entityMetadata.className}DTO"
         model["repositoryName"] = "${entityMetadata.className}Repository"
@@ -111,33 +139,23 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         model["domainPackage"] = packageConfig["domainPackage"] ?: entityMetadata.domainPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
-        model["entityVarName"] = entityMetadata.entityNameLower
-        model["serviceVarName"] = "${entityMetadata.entityNameLower}Service"
-        model["repositoryVarName"] = "${entityMetadata.entityNameLower}Repository"
-        model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
+        model["entityVarName"] = safeEntityNameLower
+        model["serviceVarName"] = "${safeEntityNameLower}Service"
+        model["repositoryVarName"] = "${safeEntityNameLower}Repository"
+        model["mapperVarName"] = "${safeEntityNameLower}Mapper"
 
         // ========== VARIABLES POUR LES API PATHS (CRITIQUES POUR LES ANNOTATIONS) ==========
-        val baseApiPath = formatApiPath(entityMetadata.entityNameLower)
+        val baseApiPath = formatApiPath(safeEntityNameLower)
         model["baseApiPath"] = baseApiPath
 
-        // S'assurer que entityApiPath ne contient jamais de placeholders non remplacés
-        val entityApiPath = entityMetadata.entityNameLower.lowercase()
-            .replace("@rest", entityMetadata.className.lowercase())
-            .replace("@", "")
-            .trim()
-
-        // Validation et fallback pour entityApiPath
-        val validEntityApiPath = if (entityApiPath.isBlank() || entityApiPath.contains("@") || entityApiPath.contains("{") || entityApiPath.contains("}")) {
-            entityMetadata.className.lowercase()
-        } else {
-            entityApiPath
-        }
-
+        // CORRECTION CRITIQUE : Calcul sécurisé de entityApiPath
+        val validEntityApiPath = entityMetadata.className.lowercase()
         model["entityApiPath"] = validEntityApiPath
 
         // Log pour debug
         println("DEBUG: Controller generation for ${entityMetadata.className}")
-        println("  - entityNameLower: '${entityMetadata.entityNameLower}'")
+        println("  - Original entityNameLower: '${entityMetadata.entityNameLower}'")
+        println("  - Safe entityNameLower: '$safeEntityNameLower'")
         println("  - entityApiPath: '$validEntityApiPath'")
         println("  - Generated API path: '/api/$validEntityApiPath'")
 

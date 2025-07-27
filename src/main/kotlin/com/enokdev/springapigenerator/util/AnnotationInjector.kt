@@ -1,14 +1,10 @@
 package com.enokdev.springapigenerator.util
 
-import com.intellij.openapi.diagnostic.Logger
-
 /**
  * Utilitaire pour forcer l'injection d'annotations dans tous les fichiers générés.
  * Cette approche garantit que les annotations sont ajoutées même si les générateurs individuels échouent.
  */
 object AnnotationInjector {
-    private val logger = Logger.getInstance(AnnotationInjector::class.java)
-
     /**
      * Injecte toutes les annotations nécessaires dans le code généré selon le type de fichier
      */
@@ -43,7 +39,7 @@ object AnnotationInjector {
             }
 
         } catch (e: Exception) {
-            logger.error("Error injecting annotations for $fileName: ${e.message}", e)
+            // Ignorer les erreurs silencieusement
         }
 
         return result

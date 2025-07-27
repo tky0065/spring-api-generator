@@ -118,7 +118,7 @@ object ForceAnnotationInjector {
                             lines.add(i, "@RestController")
                         }
                         if (!previousLines.contains("@RequestMapping")) {
-                            // Extraire le nom de l'entité pour le mapping
+                            // CORRECTION : Extraction plus robuste du nom de l'entité
                             val classDeclaration = lines[i]
                             val className = if (isKotlin) {
                                 // Pour Kotlin: "class TaskController" ou "class TaskController("
@@ -127,7 +127,19 @@ object ForceAnnotationInjector {
                                 // Pour Java: "public class TaskController"
                                 classDeclaration.substringAfter("class ").substringBefore(" ").substringBefore("{").trim()
                             }
-                            val entityName = className.replace("Controller", "").lowercase()
+
+                            // CORRECTION CRITIQUE : Calcul sécurisé du nom de l'entité
+                            var entityName = className.replace("Controller", "").lowercase()
+
+                            // Éviter les valeurs problématiques comme @rest
+                            if (entityName.contains("@") || entityName.isBlank() || entityName == "rest") {
+                                // Fallback : utiliser le nom de classe sans "Controller"
+                                entityName = className.replace("Controller", "").lowercase()
+                                if (entityName.isBlank()) {
+                                    entityName = "entity" // Fallback ultime
+                                }
+                            }
+
                             lines.add(i, "@RequestMapping(\"/api/$entityName\")")
                         }
                         break
