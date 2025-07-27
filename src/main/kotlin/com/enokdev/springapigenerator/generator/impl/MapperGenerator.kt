@@ -3,6 +3,7 @@ package com.enokdev.springapigenerator.generator.impl
 import com.enokdev.springapigenerator.generator.AbstractTemplateCodeGenerator
 import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.model.RelationType
+import com.enokdev.springapigenerator.service.DependencyValidationService
 import com.intellij.openapi.project.Project
 import java.nio.file.Paths
 
@@ -45,6 +46,7 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
         // ========== PACKAGES POUR LES IMPORTS ==========
         model["domainPackage"] = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
         model["dtoPackage"] = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+        model["entityPackage"] = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -53,6 +55,16 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
 
         // ========== VARIABLES POUR LES API PATHS ==========
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // ========== VARIABLES POUR LES ANNOTATIONS (TOUJOURS ACTIVÉES) ==========
+        model["hasMapperAnnotation"] = true
+        model["hasMapStructDependency"] = true
+        model["componentModel"] = "spring"
+        model["unmappedTargetPolicy"] = "ReportingPolicy.IGNORE"
+
+        // ========== VARIABLES CRITIQUES POUR ÉVITER LES ERREURS FREEMARKER ==========
+        model["fields"] = entityMetadata.fields
+        model["idType"] = extractSimpleTypeName(entityMetadata.idType)
 
         // Déterminer si c'est un projet Java ou Kotlin
         val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
@@ -70,7 +82,28 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
         model["customMethods"] = mapperMethods // Pour compatibilité avec les templates existants
         model["isKotlinProject"] = isKotlinProject
 
+        // ========== VALIDATION DES VARIABLES CRITIQUES ==========
+        validateRequiredVariables(model, entityMetadata)
+
         return model
+    }
+
+    /**
+     * Validate that all required variables for the Mapper template are defined.
+     * This prevents FreeMarker from failing to process template sections.
+     */
+    private fun validateRequiredVariables(model: MutableMap<String, Any>, entityMetadata: EntityMetadata) {
+        val requiredVars = listOf(
+            "mapperName", "entityName", "entityNameLower", "dtoName",
+            "packageName", "domainPackage", "dtoPackage", "entityPackage",
+            "componentModel", "idType"
+        )
+
+        requiredVars.forEach { varName ->
+            if (!model.containsKey(varName) || model[varName] == null) {
+                throw RuntimeException("Required template variable '$varName' is missing for entity ${entityMetadata.className}")
+            }
+        }
     }
 
     override fun generate(
@@ -80,7 +113,42 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
     ): String {
         // Store project for use in other methods
         this.currentProject = project
-        return super.generate(project, entityMetadata, packageConfig)
+
+        // Vérifier et ajouter les dépendances MapStruct si nécessaire
+        val features = mapOf("mapstruct" to true)
+        DependencyValidationService.validateAndEnsureDependencies(project, features)
+
+        // Générer le code de base via le template
+        val baseCode = super.generate(project, entityMetadata, packageConfig)
+
+        // INJECTER L'ANNOTATION @Mapper directement
+        return injectMapperAnnotations(baseCode, entityMetadata)
+    }
+
+    /**
+     * Injecte l'annotation @Mapper MapStruct directement dans le code généré
+     */
+    private fun injectMapperAnnotations(code: String, entityMetadata: EntityMetadata): String {
+        val interfaceName = "${entityMetadata.className}Mapper"
+
+        // Chercher la déclaration d'interface
+        val interfacePattern = Regex("(public\\s+)?interface\\s+$interfaceName", RegexOption.MULTILINE)
+
+        return interfacePattern.replace(code) { matchResult ->
+            val interfaceDeclaration = matchResult.value
+
+            // Vérifier si l'annotation @Mapper est déjà présente
+            val beforeInterface = code.substring(0, matchResult.range.first)
+            val hasMapper = beforeInterface.takeLast(200).contains("@Mapper")
+
+            if (hasMapper) {
+                // Annotation déjà présente
+                interfaceDeclaration
+            } else {
+                // Injecter l'annotation @Mapper manquante
+                "@Mapper(componentModel = \"spring\")\n$interfaceDeclaration"
+            }
+        }
     }
 
     // Add a property to store the current project

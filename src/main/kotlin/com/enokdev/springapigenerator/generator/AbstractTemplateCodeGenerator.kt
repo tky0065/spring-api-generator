@@ -60,7 +60,7 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
     protected fun isKotlinProject(project: Project): Boolean {
         return ProjectTypeDetectionService.shouldGenerateKotlinCode(project)
     }
-    
+
     /**
      * Get file extension based on project type or forced language.
      */
@@ -181,7 +181,20 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
                 progressIndicator?.fraction = 0.8
                 val writer = StringWriter()
                 try {
+                    // DEBUG: Log the data model variables to identify missing variables
+                    val logger = com.intellij.openapi.diagnostic.Logger.getInstance(javaClass)
+                    logger.info("Template processing for '$templateName' with variables: ${dataModel.keys}")
+
                     template.process(dataModel, writer)
+
+                    // DEBUG: Check if the generated content contains expected annotations
+                    val generatedContent = writer.toString()
+                    if (templateName.contains("Controller") && !generatedContent.contains("@RestController")) {
+                        logger.warn("WARNING: Controller template did not generate @RestController annotation!")
+                        logger.warn("Generated content preview: ${generatedContent.take(500)}")
+                        logger.warn("Data model variables: ${dataModel.keys}")
+                    }
+
                 } catch (e: TemplateException) {
                     // Create detailed error message using our custom error handler
                     val detailedErrorMsg = TemplateErrorHandler.createDetailedErrorMessage(e, templateName)
@@ -204,7 +217,47 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
                 progressIndicator?.text2 = "Adapting code style"
                 progressIndicator?.fraction = 0.95
                 val generatedCode = writer.toString()
+                
+                // DEBUG: Check if annotations are present in the generated code
+                val logger = com.intellij.openapi.diagnostic.Logger.getInstance(javaClass)
+                if (templateName.contains("Controller") && generatedCode.contains("@RestController")) {
+                    logger.info("DEBUG: @RestController annotation is present in the generated code before style adaptation")
+                } else if (templateName.contains("Controller") && !generatedCode.contains("@RestController")) {
+                    logger.warn("DEBUG: @RestController annotation is MISSING in the generated code before style adaptation!")
+                }
+                
+                if (templateName.contains("Repository") && generatedCode.contains("@Repository")) {
+                    logger.info("DEBUG: @Repository annotation is present in the generated code before style adaptation")
+                } else if (templateName.contains("Repository") && !generatedCode.contains("@Repository")) {
+                    logger.warn("DEBUG: @Repository annotation is MISSING in the generated code before style adaptation!")
+                }
+                
+                if (templateName.contains("ServiceImpl") && generatedCode.contains("@Service")) {
+                    logger.info("DEBUG: @Service annotation is present in the generated code before style adaptation")
+                } else if (templateName.contains("ServiceImpl") && !generatedCode.contains("@Service")) {
+                    logger.warn("DEBUG: @Service annotation is MISSING in the generated code before style adaptation!")
+                }
+                
                 val adaptedCode = styleAdapter.adaptCode(generatedCode)
+                
+                // DEBUG: Check if annotations are present in the adapted code
+                if (templateName.contains("Controller") && adaptedCode.contains("@RestController")) {
+                    logger.info("DEBUG: @RestController annotation is present in the adapted code")
+                } else if (templateName.contains("Controller") && !adaptedCode.contains("@RestController")) {
+                    logger.warn("DEBUG: @RestController annotation is MISSING in the adapted code!")
+                }
+                
+                if (templateName.contains("Repository") && adaptedCode.contains("@Repository")) {
+                    logger.info("DEBUG: @Repository annotation is present in the adapted code")
+                } else if (templateName.contains("Repository") && !adaptedCode.contains("@Repository")) {
+                    logger.warn("DEBUG: @Repository annotation is MISSING in the adapted code!")
+                }
+                
+                if (templateName.contains("ServiceImpl") && adaptedCode.contains("@Service")) {
+                    logger.info("DEBUG: @Service annotation is present in the adapted code")
+                } else if (templateName.contains("ServiceImpl") && !adaptedCode.contains("@Service")) {
+                    logger.warn("DEBUG: @Service annotation is MISSING in the adapted code!")
+                }
                 
                 // Return the adapted code
                 adaptedCode
@@ -346,6 +399,7 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
      */
     protected fun createFreemarkerConfig(project: Project): Configuration {
         val cfg = Configuration(Configuration.VERSION_2_3_30)
+        val logger = com.intellij.openapi.diagnostic.Logger.getInstance(javaClass)
 
         // Get template customization service
         val templateService = project.getService(TemplateCustomizationService::class.java)
@@ -353,14 +407,37 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
         // Set up template loaders with priority: custom templates first, then built-in templates
         val templateLoaders = mutableListOf<freemarker.cache.TemplateLoader>()
 
+        // Get template validator
+        val templateValidator = com.enokdev.springapigenerator.service.TemplateValidator.getInstance()
+
         // Add custom template directories if they exist
         val projectTemplatesDir = File(templateService.getProjectTemplatesDirectory())
         if (projectTemplatesDir.exists()) {
+            logger.info("Using custom project templates from: ${projectTemplatesDir.absolutePath}")
+            
+            // Validate project templates
+            val validationResults = templateValidator.validateTemplatesInDirectory(projectTemplatesDir)
+            templateValidator.logValidationResults(validationResults)
+            
+            if (validationResults.isNotEmpty()) {
+                logger.warn("Some custom project templates are missing required annotations. This may cause issues with code generation.")
+            }
+            
             templateLoaders.add(freemarker.cache.FileTemplateLoader(projectTemplatesDir))
         }
 
         val userTemplatesDir = File(templateService.getUserTemplatesDirectory())
         if (userTemplatesDir.exists()) {
+            logger.info("Using custom user templates from: ${userTemplatesDir.absolutePath}")
+            
+            // Validate user templates
+            val validationResults = templateValidator.validateTemplatesInDirectory(userTemplatesDir)
+            templateValidator.logValidationResults(validationResults)
+            
+            if (validationResults.isNotEmpty()) {
+                logger.warn("Some custom user templates are missing required annotations. This may cause issues with code generation.")
+            }
+            
             templateLoaders.add(freemarker.cache.FileTemplateLoader(userTemplatesDir))
         }
 
@@ -376,10 +453,10 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
         }
 
         cfg.defaultEncoding = "UTF-8"
-        
+
         // Use enhanced template error handler for better error reporting and graceful fallbacks
         cfg.templateExceptionHandler = TemplateErrorHandler()
-        
+
         cfg.logTemplateExceptions = true
         cfg.wrapUncheckedExceptions = true
         cfg.fallbackOnNullLoopVariable = false

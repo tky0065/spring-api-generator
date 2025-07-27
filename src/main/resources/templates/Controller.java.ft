@@ -2,16 +2,12 @@ package ${packageName};
 
 import ${dtoPackage}.${entityName}DTO;
 import ${servicePackage}.${entityName}Service;
-<#if hasSwaggerDependency?? && hasSwaggerDependency>
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-</#if>
-<#if hasValidationDependency?? && hasValidationDependency>
 import jakarta.validation.Valid;
-</#if>
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -25,18 +21,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-<#if additionalImports?? && additionalImports != "">
-${additionalImports}
-</#if>
 
 /**
  * REST Controller for managing {@link ${entityName}} entities.
  */
 @RestController
 @RequestMapping("/api/${entityApiPath}")
-<#if hasSwaggerDependency?? && hasSwaggerDependency>
 @Tag(name = "${entityName}s", description = "The ${entityName} API")
-</#if>
 public class ${controllerName} {
 
     private final Logger log = LoggerFactory.getLogger(${controllerName}.class);
@@ -240,7 +231,7 @@ public class ${controllerName} {
         return ResponseEntity.noContent().build();
     }
 
-<#if customMethods?? && customMethods != "">
+    <#if customMethods?? && customMethods != "">
 ${customMethods}
 </#if>
 }

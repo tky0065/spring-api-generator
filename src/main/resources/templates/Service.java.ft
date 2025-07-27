@@ -1,14 +1,14 @@
 package ${packageName};
 
 import ${dtoPackage}.${dtoName};
-
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-
-
+/**
+ * Service Interface for managing {@link ${entityName}}.
+ */
 public interface ${serviceName} {
 
     /**
@@ -79,6 +79,13 @@ public interface ${serviceName} {
      * @return true if exists, false otherwise.
      */
     boolean existsById(${idType} id);
+
+    /**
+     * Delete multiple ${entityNameLower}s by their ids.
+     *
+     * @param ids the list of ids to delete.
+     */
+    void deleteByIds(List<${idType}> ids);
 
 <#if customMethods?? && customMethods != "">
 ${customMethods}

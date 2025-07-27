@@ -40,8 +40,50 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         )
         DependencyValidationService.validateAndEnsureDependencies(project, features)
 
-        // Appeler la méthode parent
-        return super.generate(project, entityMetadata, packageConfig)
+        // Générer le code de base via le template
+        val baseCode = super.generate(project, entityMetadata, packageConfig)
+
+        // INJECTER L'ANNOTATION @RestController et @RequestMapping directement
+        return injectControllerAnnotations(baseCode, entityMetadata)
+    }
+
+    /**
+     * Injecte les annotations @RestController et @RequestMapping directement dans le code généré
+     */
+    private fun injectControllerAnnotations(code: String, entityMetadata: EntityMetadata): String {
+        val className = "${entityMetadata.className}Controller"
+
+        // Calculer le chemin API de manière sécurisée
+        val apiPath = entityMetadata.entityNameLower.lowercase()
+            .replace("@rest", entityMetadata.className.lowercase())
+            .replace("@", "")
+            .trim()
+            .takeIf { it.isNotBlank() && !it.contains("@") && !it.contains("{") && !it.contains("}") }
+            ?: entityMetadata.className.lowercase()
+
+        // Chercher la déclaration de classe
+        val classPattern = Regex("(public\\s+)?class\\s+$className", RegexOption.MULTILINE)
+
+        return classPattern.replace(code) { matchResult ->
+            val classDeclaration = matchResult.value
+
+            // Vérifier si les annotations sont déjà présentes
+            val beforeClass = code.substring(0, matchResult.range.first)
+            val hasRestController = beforeClass.takeLast(300).contains("@RestController")
+            val hasRequestMapping = beforeClass.takeLast(300).contains("@RequestMapping")
+
+            if (hasRestController && hasRequestMapping) {
+                // Annotations déjà présentes
+                classDeclaration
+            } else {
+                // Injecter les annotations manquantes avec le chemin API corrigé
+                val annotations = buildString {
+                    if (!hasRestController) append("@RestController\n")
+                    if (!hasRequestMapping) append("@RequestMapping(\"/api/$apiPath\")\n")
+                }
+                "$annotations$classDeclaration"
+            }
+        }
     }
 
     override fun createDataModel(
@@ -66,6 +108,7 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         model["servicePackage"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
         model["repositoryPackage"] = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
         model["mapperPackage"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
+        model["domainPackage"] = packageConfig["domainPackage"] ?: entityMetadata.domainPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -73,15 +116,48 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         model["repositoryVarName"] = "${entityMetadata.entityNameLower}Repository"
         model["mapperVarName"] = "${entityMetadata.entityNameLower}Mapper"
 
-        // ========== VARIABLES POUR LES API PATHS ==========
+        // ========== VARIABLES POUR LES API PATHS (CRITIQUES POUR LES ANNOTATIONS) ==========
         val baseApiPath = formatApiPath(entityMetadata.entityNameLower)
         model["baseApiPath"] = baseApiPath
-        model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
+
+        // S'assurer que entityApiPath ne contient jamais de placeholders non remplacés
+        val entityApiPath = entityMetadata.entityNameLower.lowercase()
+            .replace("@rest", entityMetadata.className.lowercase())
+            .replace("@", "")
+            .trim()
+
+        // Validation et fallback pour entityApiPath
+        val validEntityApiPath = if (entityApiPath.isBlank() || entityApiPath.contains("@") || entityApiPath.contains("{") || entityApiPath.contains("}")) {
+            entityMetadata.className.lowercase()
+        } else {
+            entityApiPath
+        }
+
+        model["entityApiPath"] = validEntityApiPath
+
+        // Log pour debug
+        println("DEBUG: Controller generation for ${entityMetadata.className}")
+        println("  - entityNameLower: '${entityMetadata.entityNameLower}'")
+        println("  - entityApiPath: '$validEntityApiPath'")
+        println("  - Generated API path: '/api/$validEntityApiPath'")
 
         // ========== VARIABLES POUR SWAGGER/API DOCUMENTATION ==========
         model["apiTitle"] = "${entityMetadata.className} API"
         model["apiDescription"] = "API for managing ${entityMetadata.className} entities"
         model["apiVersion"] = "1.0.0"
+
+        // ========== VARIABLES POUR LES ANNOTATIONS (TOUJOURS ACTIVÉES) ==========
+        model["hasRestControllerAnnotation"] = true
+        model["hasRequestMappingAnnotation"] = true
+        model["hasSwaggerDependency"] = true
+        model["hasValidationDependency"] = true
+        model["hasAutowiredAnnotation"] = true
+
+        // ========== VARIABLES CRITIQUES POUR ÉVITER LES ERREURS FREEMARKER ==========
+        // Ces variables sont utilisées dans les templates et DOIVENT être définies
+        model["idType"] = extractSimpleTypeName(entityMetadata.idType)
+        model["fields"] = entityMetadata.fields
+        model["tableName"] = entityMetadata.tableName ?: entityMetadata.entityNameLower
 
         // ========== IMPORTS ET ENDPOINTS ADDITIONNELS ==========
         val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
@@ -89,7 +165,11 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         val customMethods = generateCustomMethods(entityMetadata)
 
         model["additionalImports"] = additionalImports
+        model["additionalEndpoints"] = additionalEndpoints
         model["customMethods"] = customMethods
+
+        // ========== VALIDATION DES VARIABLES CRITIQUES ==========
+        validateRequiredVariables(model, entityMetadata)
 
         return model
     }
@@ -155,5 +235,23 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
     private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
         // Return empty string for now, can be expanded later
         return ""
+    }
+
+    /**
+     * Validate that all required variables for the Controller template are defined.
+     * This prevents FreeMarker from failing to process template sections.
+     */
+    private fun validateRequiredVariables(model: MutableMap<String, Any>, entityMetadata: EntityMetadata) {
+        val requiredVars = listOf(
+            "controllerName", "entityName", "entityNameLower", "entityApiPath",
+            "serviceName", "dtoName", "packageName", "dtoPackage", "servicePackage",
+            "serviceVarName", "idType"
+        )
+
+        requiredVars.forEach { varName ->
+            if (!model.containsKey(varName) || model[varName] == null) {
+                throw RuntimeException("Required template variable '$varName' is missing for entity ${entityMetadata.className}")
+            }
+        }
     }
 }

@@ -6,7 +6,9 @@ import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.service.*
 import com.enokdev.springapigenerator.ui.GeneratorConfigDialog
 import com.enokdev.springapigenerator.ui.LanguageSelectionDialog
-import com.enokdev.springapigenerator.util.JavaClassVisibilityFixer
+import com.enokdev.springapigenerator.util.TemplateAnnotationFixer
+import com.enokdev.springapigenerator.util.AnnotationInjector
+import com.enokdev.springapigenerator.util.ForceAnnotationInjector
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -35,6 +37,13 @@ class GenerateSpringCodeAction : AnAction() {
         val psiFile = e.getData(CommonDataKeys.PSI_FILE) ?: return
 
         try {
+            // FORCER LA CORRECTION DES ANNOTATIONS EN PREMIER
+            TemplateAnnotationFixer.applyAllAnnotationFixes(project)
+
+            // Initialize flexible annotation system
+            val annotationService = project.getService(AnnotationFlexibilityService::class.java)
+            annotationService?.initializeFlexibilitySettings()
+
             // Detect project language info
             val languageInfo = ProjectTypeDetectionService.getProjectLanguageInfo(project)
 
@@ -50,6 +59,25 @@ class GenerateSpringCodeAction : AnAction() {
 
             if (psiClass == null) {
                 showNoEntityFoundError(project, psiFile.name)
+                return
+            }
+
+            // Check if class is compatible for generation (with flexible annotation support)
+            val hasAnnotations = entityDetectionService.isJpaEntity(psiClass)
+            val isCompatible = annotationService?.isClassCompatibleForGeneration(
+                psiClass.name ?: "Unknown",
+                hasAnnotations
+            ) ?: true
+
+            if (!isCompatible) {
+                // Show suggestions to make class compatible
+                val suggestions = annotationService?.getSuggestionsForClass(
+                    psiClass.name ?: "Unknown",
+                    "Entity",
+                    hasAnnotations
+                ) ?: emptyList()
+
+                showCompatibilityWarning(project, psiClass.name ?: "Unknown", suggestions)
                 return
             }
 
@@ -498,22 +526,19 @@ class GenerateSpringCodeAction : AnAction() {
         val file = File(filePath)
         file.parentFile?.mkdirs()
         
-        // Corriger le code Java pour s'assurer que les classes ont le modificateur public
-        val correctedCode = if (filePath.endsWith(".java")) {
-            val className = file.nameWithoutExtension
-            JavaClassVisibilityFixer.fixSpringGeneratedClass(
-                JavaClassVisibilityFixer.ensurePublicClasses(code), 
-                className
-            )
-        } else {
-            code
-        }
-        
-        file.writeText(correctedCode)
+        // INJECTION ULTRA-ROBUSTE D'ANNOTATIONS - APPROCHE GARANTIE
+        val fileName = file.name
+        var finalCode = code
+
+        // Utiliser le nouveau ForceAnnotationInjector qui est beaucoup plus robuste
+        finalCode = ForceAnnotationInjector.forceAnnotationsInAllFiles(finalCode, fileName)
+
+        file.writeText(finalCode)
 
         // Refresh the virtual file system
         LocalFileSystem.getInstance().refreshAndFindFileByPath(filePath)
     }
+
 
     /**
      * Called to update UI components when action is visible.
@@ -624,5 +649,39 @@ class GenerateSpringCodeAction : AnAction() {
             "Please add the following $dependencyName dependency to your $buildSystem build file:\n\n$dependency",
             "Add $dependencyName Dependency"
         )
+    }
+
+    /**
+     * Shows compatibility warning with suggestions to fix annotation issues.
+     */
+    private fun showCompatibilityWarning(project: Project, className: String, suggestions: List<String>) {
+        val message = buildString {
+            append("La classe '$className' peut ne pas être entièrement compatible pour la génération.\n\n")
+            if (suggestions.isNotEmpty()) {
+                append("Suggestions :\n")
+                suggestions.forEach { suggestion ->
+                    append("• $suggestion\n")
+                }
+            }
+            append("\nVoulez-vous continuer la génération en mode flexible ?")
+        }
+
+        val result = Messages.showYesNoDialog(
+            project,
+            message,
+            "Compatibilité des Annotations",
+            "Continuer",
+            "Annuler",
+            Messages.getQuestionIcon()
+        )
+
+        if (result == Messages.YES) {
+            // Enable flexible mode and try again
+            val annotationService = project.getService(AnnotationFlexibilityService::class.java)
+            annotationService?.setStrictAnnotationValidation(false)
+
+            // User chose to continue, so we can proceed with generation
+            // The calling method will handle the actual generation
+        }
     }
 }

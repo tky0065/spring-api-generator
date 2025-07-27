@@ -1,9 +1,6 @@
 package ${packageName}
 
 import java.io.Serializable
-<#if hasValidationDependency?? && hasValidationDependency>
-import jakarta.validation.constraints.*
-</#if>
 <#if additionalImports?? && additionalImports != "">
 ${additionalImports}
 </#if>
@@ -12,10 +9,23 @@ ${additionalImports}
  * A DTO for the ${entityName} entity.
  */
 data class ${dtoName}(
-<#if dtoFields?? && dtoFields != "">
-${dtoFields}
+<#if dtoFields?? && dtoFields?trim != "">
+${dtoFields?trim}
+<#elseif fields?? && (fields?size > 0)>
+<#list fields as field>
+    <#if !field.nullable>
+    @field:NotNull
+    <#if field.type?contains("String")>
+    @field:NotBlank
+    </#if>
+    <#if field.name?lower_case?contains("email")>
+    @field:Email
+    </#if>
+    </#if>
+    val ${field.name}: <#if field.relationType.name() == "NONE">${field.simpleTypeName}<#else>${field.relationTargetSimpleName!"Unknown"}DTO</#if><#if field.nullable>? = null</#if><#if field_has_next>,</#if>
+</#list>
 <#else>
-    // No fields defined
+    // Fallback: ID field only
     val id: ${idType}? = null
 </#if>
 ) : Serializable {

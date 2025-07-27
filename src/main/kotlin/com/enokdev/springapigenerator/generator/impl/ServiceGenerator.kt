@@ -83,6 +83,7 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         model["repositoryPackage"] = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
         model["servicePackage"] = packageConfig["servicePackage"] ?: entityMetadata.servicePackage
         model["mapperPackage"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
+        model["entityPackage"] = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -96,6 +97,18 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         // ========== INFORMATION SUR LE LANGAGE ==========
         model["isKotlinProject"] = isKotlinProject
         model["optionalType"] = if (isKotlinProject) "${entityMetadata.className}DTO?" else "Optional<${entityMetadata.className}DTO>"
+
+        // ========== VARIABLES POUR LES ANNOTATIONS (TOUJOURS ACTIVÉES) ==========
+        model["hasServiceAnnotation"] = true
+        model["hasTransactionalAnnotation"] = true
+        model["hasValidationDependency"] = true
+        model["hasRepositoryDependency"] = true
+        model["hasMapperDependency"] = true
+        model["hasSpringDataJpaDependency"] = true
+
+        // ========== VARIABLES CRITIQUES POUR ÉVITER LES ERREURS FREEMARKER ==========
+        model["fields"] = entityMetadata.fields
+        model["tableName"] = entityMetadata.tableName ?: entityMetadata.entityNameLower
 
         // Add service-specific model data
         val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
@@ -112,7 +125,28 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         model["relationshipMethods"] = relationshipMethods
         model["customMethods"] = customMethods
 
+        // ========== VALIDATION DES VARIABLES CRITIQUES ==========
+        validateRequiredVariables(model, entityMetadata)
+
         return model
+    }
+
+    /**
+     * Validate that all required variables for the Service template are defined.
+     * This prevents FreeMarker from failing to process template sections.
+     */
+    private fun validateRequiredVariables(model: MutableMap<String, Any>, entityMetadata: EntityMetadata) {
+        val requiredVars = listOf(
+            "serviceName", "entityName", "entityNameLower", "dtoName",
+            "packageName", "dtoPackage", "repositoryPackage", "mapperPackage",
+            "repositoryName", "mapperName", "idType", "entityPackage"
+        )
+
+        requiredVars.forEach { varName ->
+            if (!model.containsKey(varName) || model[varName] == null) {
+                throw RuntimeException("Required template variable '$varName' is missing for entity ${entityMetadata.className}")
+            }
+        }
     }
 
     /**

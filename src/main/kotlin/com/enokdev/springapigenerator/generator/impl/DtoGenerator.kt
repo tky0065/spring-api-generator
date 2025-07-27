@@ -7,7 +7,6 @@ import com.enokdev.springapigenerator.model.RelationType
 import com.enokdev.springapigenerator.service.DependencyValidationService
 import com.intellij.openapi.project.Project
 import java.nio.file.Paths
-import java.util.*
 
 /**
  * Generator for Data Transfer Objects (DTOs).
@@ -37,13 +36,76 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
+        // Store project for use in other methods
+        this.currentProject = project
+
         // Vérifier et ajouter les dépendances de validation si nécessaire
         val features = mapOf("validation" to true)
         DependencyValidationService.validateAndEnsureDependencies(project, features)
 
         // Appeler la méthode parent
-        return super.generate(project, entityMetadata, packageConfig)
+        val baseCode = super.generate(project, entityMetadata, packageConfig)
+
+        // INJECTER LES ANNOTATIONS DTO directement
+        return injectDtoAnnotations(baseCode, entityMetadata)
     }
+
+    /**
+     * Injecte les annotations DTO (Lombok ou data class) directement dans le code généré
+     */
+    private fun injectDtoAnnotations(code: String, entityMetadata: EntityMetadata): String {
+        val className = "${entityMetadata.className}DTO"
+
+        // Détecter si c'est Java ou Kotlin
+        val isKotlinFile = code.contains("data class") || code.contains("class") && !code.contains("public class")
+
+        if (isKotlinFile) {
+            // Pour Kotlin - s'assurer que c'est une data class
+            val classPattern = Regex("class\\s+$className", RegexOption.MULTILINE)
+            return classPattern.replace(code) { matchResult ->
+                val classDeclaration = matchResult.value
+
+                // Vérifier si c'est déjà une data class
+                val beforeClass = code.substring(0, matchResult.range.first)
+                val hasDataClass = beforeClass.takeLast(50).contains("data")
+
+                if (hasDataClass) {
+                    classDeclaration
+                } else {
+                    classDeclaration.replace("class", "data class")
+                }
+            }
+        } else {
+            // Pour Java - ajouter les annotations Lombok
+            val classPattern = Regex("(public\\s+)?class\\s+$className", RegexOption.MULTILINE)
+
+            return classPattern.replace(code) { matchResult ->
+                val classDeclaration = matchResult.value
+
+                // Vérifier si les annotations Lombok sont déjà présentes
+                val beforeClass = code.substring(0, matchResult.range.first)
+                val hasData = beforeClass.takeLast(300).contains("@Data")
+                val hasNoArgsConstructor = beforeClass.takeLast(300).contains("@NoArgsConstructor")
+                val hasAllArgsConstructor = beforeClass.takeLast(300).contains("@AllArgsConstructor")
+
+                if (hasData && hasNoArgsConstructor && hasAllArgsConstructor) {
+                    // Annotations déjà présentes
+                    classDeclaration
+                } else {
+                    // Injecter les annotations Lombok manquantes
+                    val annotations = buildString {
+                        if (!hasData) append("@Data\n")
+                        if (!hasNoArgsConstructor) append("@NoArgsConstructor\n")
+                        if (!hasAllArgsConstructor) append("@AllArgsConstructor\n")
+                    }
+                    "$annotations$classDeclaration"
+                }
+            }
+        }
+    }
+
+    // Add a property to store the current project
+    private var currentProject: Project? = null
 
     override fun createDataModel(
         entityMetadata: EntityMetadata,
@@ -71,29 +133,101 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
         // ========== VARIABLES POUR LES API PATHS ==========
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
 
-        // Add DTO-specific model data
-        val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
-        val kotlinFields = generateKotlinFields(entityMetadata)
-        val javaFields = generateJavaFields(entityMetadata)
-        val customMethods = generateCustomMethods(entityMetadata)
+        // ========== VARIABLES POUR LES ANNOTATIONS (TOUJOURS ACTIVÉES) ==========
+        model["hasLombokAnnotation"] = true
+        model["hasDataAnnotation"] = true
+        model["hasBuilderAnnotation"] = true
+        model["hasNoArgsConstructorAnnotation"] = true
+        model["hasAllArgsConstructorAnnotation"] = true
+        model["hasValidationDependency"] = true
+        model["hasSerializableInterface"] = true
+        model["hasValidationAnnotations"] = true
+        model["hasJsonAnnotations"] = true
+
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
+        model["isKotlinProject"] = isKotlinProject
+        model["isJavaProject"] = !isKotlinProject
+
+        // ========== GÉNÉRATION DES CHAMPS POUR LES TEMPLATES ==========
+        // Les templates attendent des noms de variables spécifiques
+        if (isKotlinProject) {
+            val generatedKotlinFields = generateKotlinFields(entityMetadata)
+            model["dtoFields"] = generatedKotlinFields  // Template Kotlin attend 'dtoFields'
+            model["kotlinFields"] = generatedKotlinFields // Pour compatibilité
+            model["fields"] = entityMetadata.fields
+
+            // S'assurer qu'on a toujours les champs même si la génération échoue
+            if (generatedKotlinFields.trim().isEmpty() && entityMetadata.fields.isNotEmpty()) {
+                println("WARNING: Kotlin fields generation returned empty but entity has ${entityMetadata.fields.size} fields")
+                // Forcer la mise à disposition des champs bruts pour le template de fallback
+                model["hasFieldsForFallback"] = true
+            }
+        } else {
+            val generatedJavaFields = generateJavaFields(entityMetadata)
+            model["javaFields"] = generatedJavaFields    // Template Java attend 'javaFields'
+            model["fields"] = entityMetadata.fields
+
+            // S'assurer qu'on a toujours les champs même si la génération échoue
+            if (generatedJavaFields.trim().isEmpty() && entityMetadata.fields.isNotEmpty()) {
+                println("WARNING: Java fields generation returned empty but entity has ${entityMetadata.fields.size} fields")
+                model["hasFieldsForFallback"] = true
+            }
+        }
+
+        // Process fields with validation annotations (pour usage futur)
+        val fieldsWithValidation = entityMetadata.fields.map { field ->
+            processFieldForValidation(field, isKotlinProject)
+        }
+        model["fieldsWithValidation"] = fieldsWithValidation
+
+        // Generate additional imports and methods
+        val additionalImports = generateAdditionalImports(entityMetadata, packageConfig, isKotlinProject)
+        val additionalMethods = generateAdditionalMethods(entityMetadata, isKotlinProject)
 
         model["additionalImports"] = additionalImports
-        model["imports"] = additionalImports
-        model["dtoFields"] = kotlinFields  // For Kotlin templates
-        model["kotlinFields"] = kotlinFields
-        model["javaFields"] = javaFields   // For Java templates
-        model["customMethods"] = customMethods
-
-        // Add validation flags
-        model["hasValidation"] = entityMetadata.fields.any { !it.nullable }
+        model["additionalMethods"] = additionalMethods
 
         return model
     }
 
     /**
+     * Process field for validation based on its type and constraints.
+     */
+    private fun processFieldForValidation(field: EntityField, isKotlinProject: Boolean): Map<String, Any> {
+        val fieldData = mutableMapOf<String, Any>()
+
+        fieldData["name"] = field.name
+        fieldData["type"] = if (isKotlinProject) getFieldTypeForDto(field) else getJavaFieldType(field)
+        fieldData["nullable"] = field.nullable
+        fieldData["isCollection"] = field.isCollection
+        fieldData["relationType"] = field.relationType
+
+        // Add validation annotations based on field type
+        val validationAnnotations = mutableListOf<String>()
+
+        if (!field.nullable) {
+            validationAnnotations.add("@NotNull")
+
+            if (field.type.contains("String")) {
+                validationAnnotations.add("@NotBlank")
+            }
+        }
+
+        // Add email validation for email fields
+        if (field.name.lowercase().contains("email")) {
+            validationAnnotations.add("@Email")
+        }
+
+        fieldData["validationAnnotations"] = validationAnnotations
+
+        return fieldData
+    }
+
+    /**
      * Generate additional imports needed for the DTO based on field types and relationships.
      */
-    private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+    private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>, isKotlinProject: Boolean): String {
         val imports = mutableSetOf<String>()
         var needsJavaUtil = false
 
@@ -153,11 +287,17 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
     }
 
     /**
-     * Generate DTO fields with Kotlin syntax.
+     * Generate DTO fields with Kotlin syntax - Version corrigée pour inclure TOUS les champs
      */
     private fun generateKotlinFields(entityMetadata: EntityMetadata): String {
+        // Vérifier d'abord si nous avons des champs
+        if (entityMetadata.fields.isEmpty()) {
+            return "    val id: ${extractSimpleTypeName(entityMetadata.idType)}? = null"
+        }
+
         val fields = StringBuilder()
 
+        // S'assurer que TOUS les champs de l'entité sont inclus
         entityMetadata.fields.forEachIndexed { index, field ->
             val fieldType = getFieldTypeForDto(field)
             val isLast = index == entityMetadata.fields.size - 1
@@ -178,6 +318,11 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
                 }
             }
 
+            // Add email validation for email fields
+            if (field.name.lowercase().contains("email")) {
+                fields.append("    @field:Email\n")
+            }
+
             // Add field declaration (Kotlin syntax)
             val nullableSuffix = if (field.nullable) "? = null" else ""
             fields.append("    val ${field.name}: $fieldType$nullableSuffix")
@@ -189,7 +334,14 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
             fields.append("\n")
         }
 
-        return fields.toString()
+        val result = fields.toString().trim()
+
+        // Log pour debug si nécessaire
+        println("DEBUG: Generated Kotlin fields for ${entityMetadata.className}DTO:")
+        println("Number of fields: ${entityMetadata.fields.size}")
+        println("Generated content:\n$result")
+
+        return result
     }
 
     /**
@@ -381,5 +533,17 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
         methods.append("    }")
 
         return methods.toString()
+    }
+
+    /**
+     * Generate additional methods for the DTO.
+     */
+    private fun generateAdditionalMethods(entityMetadata: EntityMetadata, isKotlinProject: Boolean): String {
+        return if (isKotlinProject) {
+            generateCustomMethods(entityMetadata)
+        } else {
+            // For Java, we rely on Lombok annotations for standard methods
+            ""
+        }
     }
 }

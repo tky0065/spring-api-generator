@@ -1,15 +1,12 @@
 package ${packageName}
 
-<#if hasSwaggerDependency?? && hasSwaggerDependency>
+import ${dtoPackage}.${entityName}DTO
+import ${servicePackage}.${entityName}Service
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
-</#if>
-<#if hasValidationDependency?? && hasValidationDependency>
-import jakarta.validation.Valid
-</#if>
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -17,18 +14,13 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.net.URI
 import java.util.*
-<#if additionalImports?? && additionalImports != "">
-${additionalImports}
-</#if>
 
 /**
  * REST controller for managing ${entityName}.
  */
 @RestController
 @RequestMapping("/api/${entityApiPath}")
-<#if hasSwaggerDependency?? && hasSwaggerDependency>
 @Tag(name = "${entityName}s", description = "The ${entityName} API")
-</#if>
 class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
 
     private val log = LoggerFactory.getLogger(${controllerName}::class.java)
@@ -182,7 +174,7 @@ class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
         return ResponseEntity.noContent().build()
     }
 
-<#if customMethods?? && customMethods != "">
-${customMethods}
-</#if>
+    <#if customMethods?? && customMethods != "">
+    ${customMethods}
+    </#if>
 }

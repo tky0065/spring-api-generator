@@ -29,19 +29,6 @@ class ServiceImplGenerator : AbstractTemplateCodeGenerator() {
         return Paths.get(sourceRoot, serviceImplDir, fileName).toString()
     }
 
-    override fun generate(
-        project: Project,
-        entityMetadata: EntityMetadata,
-        packageConfig: Map<String, String>
-    ): String {
-        // Vérifier et ajouter les dépendances requises si nécessaire
-        val features = mapOf("mapstruct" to true)
-        DependencyValidationService.validateAndEnsureDependencies(project, features)
-
-        // Appeler la méthode parent
-        return super.generate(project, entityMetadata, packageConfig)
-    }
-
     override fun createDataModel(
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
@@ -69,6 +56,7 @@ class ServiceImplGenerator : AbstractTemplateCodeGenerator() {
         model["repositoryPackage"] = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
         model["servicePackage"] = servicePackage
         model["mapperPackage"] = packageConfig["mapperPackage"] ?: entityMetadata.mapperPackage
+        model["entityPackage"] = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -79,15 +67,110 @@ class ServiceImplGenerator : AbstractTemplateCodeGenerator() {
         // ========== VARIABLES POUR LES API PATHS ==========
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
 
+        // ========== VARIABLES POUR LES ANNOTATIONS (TOUJOURS ACTIVÉES) ==========
+        model["hasServiceAnnotation"] = true
+        model["hasTransactionalAnnotation"] = true
+        model["hasAutowiredAnnotation"] = true
+        model["hasValidationDependency"] = true
+        model["hasRepositoryDependency"] = true
+        model["hasMapperDependency"] = true
+        model["hasSlf4jAnnotation"] = true
+
+        // ========== VARIABLES CRITIQUES POUR ÉVITER LES ERREURS FREEMARKER ==========
+        model["fields"] = entityMetadata.fields
+        model["tableName"] = entityMetadata.tableName ?: entityMetadata.entityNameLower
+
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
+        model["isKotlinProject"] = isKotlinProject
+        model["optionalType"] = if (isKotlinProject) "${entityMetadata.className}DTO?" else "Optional<${entityMetadata.className}DTO>"
+
         // Add service implementation-specific model data
         val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
-        val customMethods = generateCustomImplementationMethods(entityMetadata)
+        val relationshipMethods = generateRelationshipMethods(entityMetadata)
+        val customMethods = generateCustomMethods(entityMetadata, packageConfig)
 
         model["additionalImports"] = additionalImports
+        model["relationshipMethods"] = relationshipMethods
         model["customMethods"] = customMethods
+
+        // ========== VALIDATION DES VARIABLES CRITIQUES ==========
+        validateRequiredVariables(model, entityMetadata)
 
         return model
     }
+
+    /**
+     * Validate that all required variables for the ServiceImpl template are defined.
+     * This prevents FreeMarker from failing to process template sections.
+     */
+    private fun validateRequiredVariables(model: MutableMap<String, Any>, entityMetadata: EntityMetadata) {
+        val requiredVars = listOf(
+            "serviceImplName", "serviceName", "entityName", "entityNameLower",
+            "dtoName", "repositoryName", "mapperName", "packageName",
+            "domainPackage", "dtoPackage", "repositoryPackage", "servicePackage",
+            "mapperPackage", "entityPackage", "idType"
+        )
+
+        requiredVars.forEach { varName ->
+            if (!model.containsKey(varName) || model[varName] == null) {
+                throw RuntimeException("Required template variable '$varName' is missing for entity ${entityMetadata.className}")
+            }
+        }
+    }
+
+    override fun generate(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>
+    ): String {
+        // Store project for use in other methods
+        this.currentProject = project
+
+        // Vérifier et ajouter les dépendances requises si nécessaire
+        val features = mapOf("mapstruct" to true)
+        DependencyValidationService.validateAndEnsureDependencies(project, features)
+
+        // Générer le code de base via le template
+        val baseCode = super.generate(project, entityMetadata, packageConfig)
+
+        // INJECTER LES ANNOTATIONS DIRECTEMENT dans le code généré
+        return injectServiceImplAnnotations(baseCode, entityMetadata)
+    }
+
+    /**
+     * Injecte les annotations @Service et @Transactional directement dans le code généré
+     */
+    private fun injectServiceImplAnnotations(code: String, entityMetadata: EntityMetadata): String {
+        val className = "${entityMetadata.className}ServiceImpl"
+
+        // Chercher la déclaration de classe
+        val classPattern = Regex("(public\\s+)?class\\s+$className", RegexOption.MULTILINE)
+
+        return classPattern.replace(code) { matchResult ->
+            val classDeclaration = matchResult.value
+
+            // Vérifier si les annotations sont déjà présentes
+            val beforeClass = code.substring(0, matchResult.range.first)
+            val hasService = beforeClass.takeLast(200).contains("@Service")
+            val hasTransactional = beforeClass.takeLast(200).contains("@Transactional")
+
+            if (hasService && hasTransactional) {
+                // Annotations déjà présentes
+                classDeclaration
+            } else {
+                // Injecter les annotations manquantes
+                val annotations = buildString {
+                    if (!hasService) append("@Service\n")
+                    if (!hasTransactional) append("@Transactional\n")
+                }
+                "$annotations$classDeclaration"
+            }
+        }
+    }
+
+    // Add a property to store the current project
+    private var currentProject: Project? = null
 
     /**
      * Generate additional imports needed for the service implementation.
@@ -112,8 +195,22 @@ class ServiceImplGenerator : AbstractTemplateCodeGenerator() {
     /**
      * Generate custom implementation methods for the service.
      */
-    private fun generateCustomImplementationMethods(entityMetadata: EntityMetadata): String {
+    private fun generateCustomMethods(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         // Return empty string for now, can be expanded later with business logic methods
         return ""
+    }
+
+    /**
+     * Generate relationship methods for the service implementation.
+     */
+    private fun generateRelationshipMethods(entityMetadata: EntityMetadata): String {
+        val methods = StringBuilder()
+
+        // Example: Generate a method to get related entities
+        methods.appendLine("fun getRelatedEntities(entityId: Long): List<${entityMetadata.className}> {")
+        methods.appendLine("    // Implement logic to retrieve related entities")
+        methods.appendLine("}")
+
+        return methods.toString()
     }
 }

@@ -1,10 +1,7 @@
 package ${packageName}
 
+import ${dtoPackage}.${dtoName}
 import java.util.*
-import ${dtoPackage}.${dtoName};
-import org.springframework.data.domain.Page
-
-import org.springframework.data.domain.Pageable;
 
 <#if additionalImports?? && additionalImports != "">
 ${additionalImports}
@@ -81,6 +78,13 @@ interface ${serviceName} {
      * @return true if exists, false otherwise
      */
     fun existsById(id: ${idType}): Boolean
+
+    /**
+     * Delete multiple ${entityNameLower}s by their ids.
+     *
+     * @param ids the list of ids to delete
+     */
+    fun deleteByIds(ids: List<${idType}>)
 
 <#if customMethods?? && customMethods != "">
 ${customMethods}

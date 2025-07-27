@@ -39,12 +39,13 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator() {
         model["entityName"] = entityMetadata.className
         model["entityNameLower"] = entityMetadata.entityNameLower
         model["packageName"] = packageConfig["repositoryPackage"] ?: entityMetadata.repositoryPackage
-        model["tableName"] = entityMetadata.tableName
-        model["idType"] = entityMetadata.idType
+        model["tableName"] = entityMetadata.tableName ?: entityMetadata.entityNameLower
+        model["idType"] = extractSimpleTypeName(entityMetadata.idType)
 
         // ========== VARIABLES POUR LES PACKAGES (NÉCESSAIRES POUR LES IMPORTS) ==========
         model["domainPackage"] = packageConfig["domainPackage"] ?: entityMetadata.domainPackage
         model["dtoPackage"] = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
+        model["entityPackage"] = packageConfig["domainPackage"] ?: entityMetadata.domainPackage
 
         // ========== VARIABLES POUR LES NOMS DE VARIABLES ==========
         model["entityVarName"] = entityMetadata.entityNameLower
@@ -53,40 +54,53 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator() {
         // ========== VARIABLES POUR LES API PATHS ==========
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
 
+        // ========== VARIABLES POUR LES ANNOTATIONS (TOUJOURS ACTIVÉES) ==========
+        model["hasRepositoryAnnotation"] = true
+        model["hasValidationDependency"] = true
+        model["hasSpringDataJpaDependency"] = true
+        model["hasJpaAnnotations"] = true
+
+        // ========== VARIABLES CRITIQUES POUR ÉVITER LES ERREURS FREEMARKER ==========
+        model["fields"] = entityMetadata.fields
+
         // Find primary key field - assuming first field or field named "id"
         val primaryKeyField = entityMetadata.fields.find { it.name == "id" }
             ?: entityMetadata.fields.firstOrNull()
         model["primaryKey"] = primaryKeyField?.name ?: "id"
-        model["fields"] = entityMetadata.fields
 
         // Add repository-specific model data
         val additionalImports = generateAdditionalImports(entityMetadata)
-        // DÉSACTIVÉ TEMPORAIREMENT : Les méthodes personnalisées causent des problèmes
-        // val generateCustomQueryMethods = packageConfig["generateCustomQueryMethods"]?.toBoolean() ?: false
-        val generateCustomQueryMethods = false // Force désactivation
-        val customQueryMethods = if (generateCustomQueryMethods) {
-            generateCustomQueryMethods(entityMetadata, packageConfig)
-        } else {
-            ""
-        }
-        val additionalMethods = if (generateCustomQueryMethods) {
-            generateAdditionalMethods(entityMetadata, packageConfig)
-        } else {
-            ""
-        }
-        val customMethods = if (generateCustomQueryMethods) {
-            generateCustomMethods(entityMetadata, packageConfig)
-        } else {
-            ""
-        }
+        val generateCustomQueryMethods = false // Force désactivation pour éviter les problèmes
+        val customQueryMethods = ""
+        val additionalMethods = ""
+        val customMethods = ""
 
         model["additionalImports"] = additionalImports
-        model["imports"] = additionalImports
         model["customQueryMethods"] = customQueryMethods
         model["additionalMethods"] = additionalMethods
         model["customMethods"] = customMethods
 
+        // ========== VALIDATION DES VARIABLES CRITIQUES ==========
+        validateRequiredVariables(model, entityMetadata)
+
         return model
+    }
+
+    /**
+     * Validate that all required variables for the Repository template are defined.
+     * This prevents FreeMarker from failing to process template sections.
+     */
+    private fun validateRequiredVariables(model: MutableMap<String, Any>, entityMetadata: EntityMetadata) {
+        val requiredVars = listOf(
+            "repositoryName", "entityName", "entityNameLower", "packageName",
+            "domainPackage", "idType", "tableName", "entityPackage"
+        )
+
+        requiredVars.forEach { varName ->
+            if (!model.containsKey(varName) || model[varName] == null) {
+                throw RuntimeException("Required template variable '$varName' is missing for entity ${entityMetadata.className}")
+            }
+        }
     }
 
     /**
@@ -262,9 +276,37 @@ class RepositoryGenerator : AbstractTemplateCodeGenerator() {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        // Store project for use in other methods
-        this.currentProject = project
-        return super.generate(project, entityMetadata, packageConfig)
+        // Générer le code de base via le template
+        val baseCode = super.generate(project, entityMetadata, packageConfig)
+
+        // INJECTER L'ANNOTATION @Repository directement
+        return injectRepositoryAnnotations(baseCode, entityMetadata)
+    }
+
+    /**
+     * Injecte l'annotation @Repository directement dans le code généré
+     */
+    private fun injectRepositoryAnnotations(code: String, entityMetadata: EntityMetadata): String {
+        val interfaceName = "${entityMetadata.className}Repository"
+
+        // Chercher la déclaration d'interface
+        val interfacePattern = Regex("(public\\s+)?interface\\s+$interfaceName", RegexOption.MULTILINE)
+
+        return interfacePattern.replace(code) { matchResult ->
+            val interfaceDeclaration = matchResult.value
+
+            // Vérifier si l'annotation est déjà présente
+            val beforeInterface = code.substring(0, matchResult.range.first)
+            val hasRepository = beforeInterface.takeLast(200).contains("@Repository")
+
+            if (hasRepository) {
+                // Annotation déjà présente
+                interfaceDeclaration
+            } else {
+                // Injecter l'annotation manquante
+                "@Repository\n$interfaceDeclaration"
+            }
+        }
     }
 
     // Add a property to store the current project

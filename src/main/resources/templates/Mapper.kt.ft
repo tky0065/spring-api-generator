@@ -17,11 +17,7 @@ ${additionalImports}
 /**
  * Mapper for the entity ${entityName} and its DTO ${dtoName}.
  */
-<#if usesMappers?has_content>
-@Mapper(componentModel = "spring", uses = [${usesMappers?join(", ")}], unmappedTargetPolicy = ReportingPolicy.IGNORE)
-<#else>
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
-</#if>
 interface ${mapperName} {
 
 <#if mappings?has_content>
