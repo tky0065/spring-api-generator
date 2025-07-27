@@ -54,19 +54,37 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
         // ========== VARIABLES POUR LES API PATHS ==========
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
 
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
+
         // Add mapper-specific data
         val mappings = generateMappings(entityMetadata)
         val usesMappers = collectUsedMappers(entityMetadata)
         val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
-        val customMethods = generateCustomMethods(entityMetadata)
+        val mapperMethods = generateMapperMethods(entityMetadata, packageConfig)
 
         model["mappings"] = mappings
         model["usesMappers"] = usesMappers
         model["additionalImports"] = additionalImports
-        model["customMethods"] = customMethods
+        model["mapperMethods"] = mapperMethods
+        model["customMethods"] = mapperMethods // Pour compatibilité avec les templates existants
+        model["isKotlinProject"] = isKotlinProject
 
         return model
     }
+
+    override fun generate(
+        project: Project,
+        entityMetadata: EntityMetadata,
+        packageConfig: Map<String, String>
+    ): String {
+        // Store project for use in other methods
+        this.currentProject = project
+        return super.generate(project, entityMetadata, packageConfig)
+    }
+
+    // Add a property to store the current project
+    private var currentProject: Project? = null
 
     /**
      * Generate field mappings for related entities.
@@ -74,18 +92,31 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
     private fun generateMappings(entityMetadata: EntityMetadata): List<String> {
         val mappings = mutableListOf<String>()
 
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
+
         entityMetadata.fields.forEach { field ->
             when (field.relationType) {
                 RelationType.ONE_TO_ONE, RelationType.MANY_TO_ONE -> {
                     val targetName = field.relationTargetSimpleName
                     if (targetName != null) {
-                        mappings.add("@Mapping(target = \"${field.name}\", source = \"${field.name}\")")
+                        // Générer les annotations @Mapping pour les relations
+                        if (isKotlinProject) {
+                            mappings.add("@Mapping(target = \"${field.name}\", source = \"${field.name}\")")
+                        } else {
+                            mappings.add("@Mapping(target = \"${field.name}\", source = \"${field.name}\")")
+                        }
                     }
                 }
                 RelationType.ONE_TO_MANY, RelationType.MANY_TO_MANY -> {
                     val targetName = field.relationTargetSimpleName
                     if (targetName != null) {
-                        mappings.add("@Mapping(target = \"${field.name}\", source = \"${field.name}\")")
+                        // Pour les collections, on peut ignorer le mapping ou utiliser un mapping spécifique
+                        if (isKotlinProject) {
+                            mappings.add("@Mapping(target = \"${field.name}\", ignore = true)")
+                        } else {
+                            mappings.add("@Mapping(target = \"${field.name}\", ignore = true)")
+                        }
                     }
                 }
                 else -> {}
@@ -101,11 +132,18 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
     private fun collectUsedMappers(entityMetadata: EntityMetadata): List<String> {
         val mappers = mutableSetOf<String>()
 
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
+
         entityMetadata.fields.forEach { field ->
             if (field.relationType != RelationType.NONE) {
                 val targetName = field.relationTargetSimpleName
                 if (targetName != null) {
-                    mappers.add("${targetName}Mapper.class")
+                    if (isKotlinProject) {
+                        mappers.add("${targetName}Mapper::class")
+                    } else {
+                        mappers.add("${targetName}Mapper.class")
+                    }
                 }
             }
         }
@@ -117,29 +155,38 @@ class MapperGenerator : AbstractTemplateCodeGenerator() {
      * Generate additional imports needed for the mapper.
      */
     private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        val imports = mutableListOf<String>()
+        val imports = mutableSetOf<String>()
 
-        // Add imports for related entities
+        // Les imports de base sont déjà dans le template, pas besoin de les ajouter ici
+        // pour éviter les doublons
+
+        // Add imports for related entities only
         entityMetadata.fields.forEach { field ->
             if (field.relationType != RelationType.NONE) {
                 val targetName = field.relationTargetSimpleName
                 if (targetName != null) {
                     val entityPackage = packageConfig["entityPackage"] ?: entityMetadata.domainPackage
                     val dtoPackage = packageConfig["dtoPackage"] ?: entityMetadata.dtoPackage
-                    imports.add("import ${entityPackage}.${targetName};")
-                    imports.add("import ${dtoPackage}.${targetName}DTO;")
+                    imports.add("${entityPackage}.${targetName}")
+                    imports.add("${dtoPackage}.${targetName}DTO")
                 }
             }
         }
 
-        return imports.joinToString("\n")
+        return if (imports.isNotEmpty()) {
+            imports.sorted().joinToString("\n") { "import $it;" }
+        } else {
+            ""
+        }
     }
 
     /**
-     * Generate custom methods for the mapper.
+     * Generate mapper methods with proper MapStruct annotations.
+     * Note: Les méthodes de base sont déjà dans les templates, on génère seulement les méthodes spécifiques ici
      */
-    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
-        // Return empty string for now, can be expanded later
+    private fun generateMapperMethods(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        // Retourner une chaîne vide car toutes les méthodes de base sont déjà dans les templates
+        // Cela évite les doublons de méthodes
         return ""
     }
 }

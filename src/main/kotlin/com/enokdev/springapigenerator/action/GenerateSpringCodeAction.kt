@@ -6,6 +6,7 @@ import com.enokdev.springapigenerator.model.EntityMetadata
 import com.enokdev.springapigenerator.service.*
 import com.enokdev.springapigenerator.ui.GeneratorConfigDialog
 import com.enokdev.springapigenerator.ui.LanguageSelectionDialog
+import com.enokdev.springapigenerator.util.JavaClassVisibilityFixer
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -496,18 +497,18 @@ class GenerateSpringCodeAction : AnAction() {
     private fun writeCodeToFile(filePath: String, code: String) {
         val file = File(filePath)
         file.parentFile?.mkdirs()
-
+        
         // Corriger le code Java pour s'assurer que les classes ont le modificateur public
         val correctedCode = if (filePath.endsWith(".java")) {
             val className = file.nameWithoutExtension
             JavaClassVisibilityFixer.fixSpringGeneratedClass(
-                JavaClassVisibilityFixer.ensurePublicClasses(code),
+                JavaClassVisibilityFixer.ensurePublicClasses(code), 
                 className
             )
         } else {
             code
         }
-
+        
         file.writeText(correctedCode)
 
         // Refresh the virtual file system

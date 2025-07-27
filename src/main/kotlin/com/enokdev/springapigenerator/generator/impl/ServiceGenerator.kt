@@ -32,6 +32,9 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
     }
 
     override fun generate(project: Project, entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
+        // Store project for use in other methods
+        this.currentProject = project
+
         // Vérifier et ajouter les dépendances requises si nécessaire
         val features = mapOf("mapstruct" to true)
         DependencyValidationService.validateAndEnsureDependencies(project, features)
@@ -50,11 +53,17 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         return interfaceCode
     }
 
+    // Add a property to store the current project
+    private var currentProject: Project? = null
+
     override fun createDataModel(
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): MutableMap<String, Any> {
         val model = super.createDataModel(entityMetadata, packageConfig)
+
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
 
         // ========== VARIABLES DE BASE POUR TOUS LES TEMPLATES ==========
         model["serviceName"] = "${entityMetadata.className}Service"
@@ -84,13 +93,17 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
         // ========== VARIABLES POUR LES API PATHS ==========
         model["entityApiPath"] = entityMetadata.entityNameLower.lowercase()
 
+        // ========== INFORMATION SUR LE LANGAGE ==========
+        model["isKotlinProject"] = isKotlinProject
+        model["optionalType"] = if (isKotlinProject) "${entityMetadata.className}DTO?" else "Optional<${entityMetadata.className}DTO>"
+
         // Add service-specific model data
         val additionalImports = generateAdditionalImports(entityMetadata, packageConfig)
         val relationshipMethods = generateRelationshipMethods(entityMetadata)
         // Vérifie si les méthodes personnalisées sont activées dans la configuration
         val generateCustomQueryMethods = packageConfig["generateCustomQueryMethods"]?.toBoolean() ?: false
         val customMethods = if (generateCustomQueryMethods) {
-            generateCustomMethods(entityMetadata)
+            generateCustomMethods(entityMetadata, packageConfig)
         } else {
             ""
         }
@@ -106,9 +119,26 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
      * Generate additional imports needed for the service interface.
      */
     private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
-        // Note: Basic imports are handled in templates to avoid duplicates
-        // Only add specific imports that are not already in the template
-        return ""
+        val imports = mutableSetOf<String>()
+
+        // Déterminer si c'est un projet Java ou Kotlin
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
+
+        if (!isKotlinProject) {
+            // Pour Java, ajouter java.util.* pour Optional, List, etc.
+            imports.add("java.util.*")
+        }
+
+        // Ajouter les imports Spring communs (sans doublons)
+        imports.add("org.springframework.data.domain.Page")
+        imports.add("org.springframework.data.domain.Pageable")
+
+        return if (imports.isNotEmpty()) {
+            // Éliminer les doublons et trier
+            imports.sorted().distinct().joinToString("\n") { "import $it" }
+        } else {
+            ""
+        }
     }
 
     /**
@@ -220,78 +250,74 @@ class ServiceGenerator : AbstractTemplateCodeGenerator() {
     /**
      * Generate custom service methods for specific business logic.
      */
-    private fun generateCustomMethods(entityMetadata: EntityMetadata): String {
+    private fun generateCustomMethods(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val methods = StringBuilder()
+        val entityNameLower = entityMetadata.entityNameLower
+        val dtoName = entityMetadata.dtoName
+        val idTypeSimple = entityMetadata.idType.substringAfterLast(".")
 
-        // Generate pagination methods
-        methods.append("""
-            /**
-             * Find all ${entityMetadata.entityNameLower}s with pagination.
-             *
-             * @param page the page number (0-based)
-             * @param size the page size
-             * @return a page of entity DTOs
-             */
-            Page<${entityMetadata.dtoName}> findAllPaginated(int page, int size);
-            
-        """.trimIndent())
-        methods.append("\n")
+        val isKotlinProject = currentProject?.let { getFileExtensionForProject(it) == "kt" } ?: false
 
-        // Generate search methods if entity has string fields
-        val stringFields = entityMetadata.fields.filter {
-            it.simpleTypeName == "String" && it.name != "id" && !it.isCollection
-        }
-
-        if (stringFields.isNotEmpty()) {
+        if (isKotlinProject) {
+            // Kotlin syntax - SEULEMENT les méthodes NON présentes dans le template
             methods.append("""
-                /**
-                 * Search ${entityMetadata.entityNameLower}s by keyword.
-                 *
-                 * @param keyword the search keyword
-                 * @return list of matching entity DTOs
-                 */
-                List<${entityMetadata.dtoName}> searchByKeyword(String keyword);
-                
-            """.trimIndent())
-            methods.append("\n")
+    /**
+     * Delete multiple ${entityNameLower}s by ids.
+     *
+     * @param ids the list of ids to delete
+     */
+    fun deleteByIds(ids: List<$idTypeSimple>)
+
+""")
+
+            // Generate search methods if entity has string fields
+            val stringFields = entityMetadata.fields.filter {
+                it.simpleTypeName == "String" && it.name != "id" && !it.isCollection
+            }
+
+            if (stringFields.isNotEmpty()) {
+                methods.append("""
+    /**
+     * Search ${entityNameLower}s by keyword.
+     *
+     * @param keyword the search keyword
+     * @return list of matching entity DTOs
+     */
+    fun searchByKeyword(keyword: String): List<$dtoName>
+
+""")
+            }
+        } else {
+            // Java syntax - SEULEMENT les méthodes NON présentes dans le template
+            methods.append("""
+
+    /**
+     * Delete multiple ${entityNameLower}s by ids.
+     *
+     * @param ids the list of ids to delete.
+     */
+    void deleteByIds(List<$idTypeSimple> ids);
+
+""")
+
+            // Generate search methods if entity has string fields
+            val stringFields = entityMetadata.fields.filter {
+                it.simpleTypeName == "String" && it.name != "id" && !it.isCollection
+            }
+
+            if (stringFields.isNotEmpty()) {
+                methods.append("""
+    /**
+     * Search ${entityNameLower}s by keyword.
+     *
+     * @param keyword the search keyword.
+     * @return list of matching entities.
+     */
+    List<$dtoName> searchByKeyword(String keyword);
+
+""")
+            }
         }
-
-        // Generate count methods
-        methods.append("""
-            /**
-             * Count total number of ${entityMetadata.entityNameLower}s.
-             *
-             * @return the total count
-             */
-            long count();
-            
-        """.trimIndent())
-        methods.append("\n")
-
-        // Generate existence check methods
-        methods.append("""
-            /**
-             * Check if a ${entityMetadata.entityNameLower} exists by id.
-             *
-             * @param id the id to check
-             * @return true if exists, false otherwise
-             */
-            boolean existsById(${entityMetadata.idType.substringAfterLast(".")} id);
-            
-        """.trimIndent())
-        methods.append("\n")
-
-        // Generate bulk operations if applicable
-        methods.append("""
-            /**
-             * Delete multiple ${entityMetadata.entityNameLower}s by ids.
-             *
-             * @param ids the list of ids to delete
-             */
-            void deleteByIds(List<${entityMetadata.idType.substringAfterLast(".")}> ids);
-            
-        """.trimIndent())
-        methods.append("\n")
 
         return methods.toString()
     }

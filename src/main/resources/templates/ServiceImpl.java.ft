@@ -94,6 +94,12 @@ public class ${serviceImplName} implements ${serviceName} {
     }
 
     @Override
+    public void deleteByIds(List<${idType}> ids) {
+        log.debug("Request to delete ${entityName}s by ids : {}", ids);
+        ${repositoryVarName}.deleteAllById(ids);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public long count() {
         log.debug("Request to count ${entityName}s");

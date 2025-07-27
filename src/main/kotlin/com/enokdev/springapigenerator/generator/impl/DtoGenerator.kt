@@ -95,6 +95,7 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
      */
     private fun generateAdditionalImports(entityMetadata: EntityMetadata, packageConfig: Map<String, String>): String {
         val imports = mutableSetOf<String>()
+        var needsJavaUtil = false
 
         // Note: Basic imports (validation, serializable) are handled in templates
         // Only add specific imports based on field types
@@ -104,7 +105,8 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
                 field.relationType != RelationType.NONE -> {
                     // For relationships, add DTO imports
                     if (field.isCollection) {
-                        // Collections are handled in templates
+                        // Add collection import for Java only (Kotlin has built-in collections)
+                        // Collections are handled in templates, but we need proper base collection types
                     } else {
                         val relationTargetSimpleName = field.relationTargetSimpleName
                         if (relationTargetSimpleName != null) {
@@ -119,16 +121,32 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
                 field.type.startsWith("java.math") -> {
                     imports.add(field.type)
                 }
-                field.type.startsWith("java.util") && field.type != "java.util.Set" -> {
-                    imports.add(field.type)
+                field.type.startsWith("java.util") && !field.type.contains("<") -> {
+                    // Mark that we need java.util.* import instead of individual ones
+                    needsJavaUtil = true
+                }
+                field.type.contains("UUID") -> {
+                    needsJavaUtil = true
                 }
             }
         }
 
+        // Add collection imports only for the base types needed
+        val needsSetImport = entityMetadata.fields.any { field ->
+            field.relationType in listOf(RelationType.ONE_TO_MANY, RelationType.MANY_TO_MANY)
+        }
+
+        if (needsSetImport) {
+            needsJavaUtil = true
+        }
+
+        // Add java.util.* if any java.util types are needed
+        if (needsJavaUtil) {
+            imports.add("java.util.*")
+        }
+
         return if (imports.isNotEmpty()) {
-            imports.joinToString("\n") {
-                if (it.endsWith("DTO")) "import $it" else "import $it"
-            }
+            imports.sorted().joinToString("\n") { "import $it;" }
         } else {
             ""
         }
@@ -233,6 +251,32 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
     }
 
     /**
+     * Get the appropriate Kotlin type for a field in the DTO.
+     */
+    private fun getFieldTypeForDto(field: EntityField): String {
+        return when (field.relationType) {
+            RelationType.NONE -> {
+                getKotlinSimpleFieldType(field)
+            }
+            RelationType.ONE_TO_ONE, RelationType.MANY_TO_ONE -> {
+                "${field.relationTargetSimpleName}DTO"
+            }
+            RelationType.ONE_TO_MANY, RelationType.MANY_TO_MANY -> {
+                "MutableList<${field.relationTargetSimpleName}DTO>"
+            }
+            RelationType.EMBEDDED -> {
+                field.relationTargetSimpleName ?: getKotlinSimpleFieldType(field)
+            }
+            RelationType.INHERITANCE -> {
+                "${field.relationTargetSimpleName}DTO"
+            }
+            RelationType.COMPOSITION -> {
+                "${field.relationTargetSimpleName}DTO"
+            }
+        }
+    }
+
+    /**
      * Get the simple Java field type.
      */
     private fun getJavaSimpleFieldType(field: EntityField): String {
@@ -251,6 +295,32 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
             field.type.contains("Instant") -> "Instant"
             field.type.contains("UUID") -> "UUID"
             field.type.contains("byte[]") || field.type.contains("Byte[]") -> "byte[]"
+            else -> {
+                // Extract the simple class name from fully qualified class name
+                field.type.substringAfterLast(".")
+            }
+        }
+    }
+
+    /**
+     * Get the simple Kotlin field type.
+     */
+    private fun getKotlinSimpleFieldType(field: EntityField): String {
+        return when {
+            field.type.contains("String") -> "String"
+            field.type.contains("Long") -> "Long"
+            field.type.contains("Integer") || field.type.contains("int") -> "Int"
+            field.type.contains("Boolean") || field.type.contains("boolean") -> "Boolean"
+            field.type.contains("Double") || field.type.contains("double") -> "Double"
+            field.type.contains("Float") || field.type.contains("float") -> "Float"
+            field.type.contains("BigDecimal") -> "BigDecimal"
+            field.type.contains("LocalDate") -> "LocalDate"
+            field.type.contains("LocalDateTime") -> "LocalDateTime"
+            field.type.contains("LocalTime") -> "LocalTime"
+            field.type.contains("ZonedDateTime") -> "ZonedDateTime"
+            field.type.contains("Instant") -> "Instant"
+            field.type.contains("UUID") -> "UUID"
+            field.type.contains("byte[]") || field.type.contains("Byte[]") -> "ByteArray"
             else -> {
                 // Extract the simple class name from fully qualified class name
                 field.type.substringAfterLast(".")
@@ -286,7 +356,7 @@ class DtoGenerator : AbstractTemplateCodeGenerator() {
             val fieldType = getFieldTypeForDto(field)
             val nullableSuffix = if (field.nullable) "?" else ""
             val defaultValue = if (field.nullable) " = null" else " = this.${field.name}"
-
+            
             methods.append("        ${field.name}: $fieldType$nullableSuffix$defaultValue")
             if (index < entityMetadata.fields.size - 1) {
                 methods.append(",\n")

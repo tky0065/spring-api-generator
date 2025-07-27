@@ -1,15 +1,16 @@
 package ${packageName}
 
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.Pageable
 import java.util.*
+import ${dtoPackage}.${dtoName};
+import org.springframework.data.domain.Page
+
+import org.springframework.data.domain.Pageable;
+
 <#if additionalImports?? && additionalImports != "">
 ${additionalImports}
 </#if>
 
-/**
- * Service interface for managing ${entityName}s .
- */
+
 interface ${serviceName} {
 
     /**

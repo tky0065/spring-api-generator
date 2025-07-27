@@ -87,6 +87,11 @@ class ${serviceImplName}(
         return ${repositoryVarName}.existsById(id)
     }
 
+    override fun deleteByIds(ids: List<${idType}>) {
+        log.debug("Request to delete ${entityName}s by ids : {}", ids)
+        ${repositoryVarName}.deleteAllById(ids)
+    }
+
 <#if customMethods?? && customMethods != "">
 ${customMethods}
 </#if>

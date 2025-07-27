@@ -32,8 +32,8 @@ class GeneratorConfigDialog(
     private val mapperCheckbox = JBCheckBox("Mapper", true)
     private val testCheckbox = JBCheckBox("Tests", true)
 
-    // Nouvelle option pour contrôler les Custom Query Methods
-    private val customQueryMethodsCheckbox = JBCheckBox("Generate Custom Query Methods", true)
+    // Nouvelle option pour contrôler les Custom Query Methods - DÉSACTIVÉE TEMPORAIREMENT
+    private val customQueryMethodsCheckbox = JBCheckBox("Generate Custom Query Methods", false)
 
     private val useMapstructCheckbox = JBCheckBox("Use MapStruct 1.6.3", false)
     private val useSwaggerCheckbox = JBCheckBox("Use Swagger/OpenAPI 2.8.9", false)
@@ -691,11 +691,13 @@ class GeneratorConfigDialog(
             testCheckbox
         )))
 
-        // Custom Query Methods checkbox (liée au Repository)
+        // Custom Query Methods checkbox (liée au Repository) - DÉSACTIVÉE TEMPORAIREMENT
         panel.add(Box.createVerticalStrut(10))
         panel.add(customQueryMethodsCheckbox.apply {
-            // Désactiver si Repository n'est pas sélectionné
-            isEnabled = repositoryCheckbox.isSelected
+            // Désactiver complètement pour éviter les problèmes
+            isEnabled = false
+            isSelected = false
+            text = "Generate Custom Query Methods (DISABLED - causing issues)"
         })
 
         // Ajouter un listener pour désactiver Custom Query Methods si Repository est désélectionné

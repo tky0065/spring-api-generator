@@ -1,49 +1,91 @@
 package ${packageName}
 
 import ${domainPackage}.${entityName}
-import ${dtoPackage}.${entityName}DTO
-import org.mapstruct.*
+import ${dtoPackage}.${dtoName}
+import org.mapstruct.BeanMapping
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingTarget
+import org.mapstruct.NullValuePropertyMappingStrategy
+import org.mapstruct.ReportingPolicy
 import org.springframework.data.domain.Page
+
 <#if additionalImports?? && additionalImports != "">
 ${additionalImports}
 </#if>
 
 /**
- * Mapper for the entity ${entityName} and its DTO ${entityName}DTO.
+ * Mapper for the entity ${entityName} and its DTO ${dtoName}.
  */
 <#if usesMappers?has_content>
-@Mapper(componentModel = "spring", uses = [${usesMappers?join(", ")}])
+@Mapper(componentModel = "spring", uses = [${usesMappers?join(", ")}], unmappedTargetPolicy = ReportingPolicy.IGNORE)
 <#else>
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 </#if>
 interface ${mapperName} {
 
 <#if mappings?has_content>
+    // Field mappings for relationships
     ${mappings?join("\n    ")}
 </#if>
-    fun toDto(${entityNameLower}: ${entityName}): ${entityName}DTO
-
-    fun toDto(${entityNameLower}List: List<${entityName}>): List<${entityName}DTO>
-
-    fun toDto(${entityNameLower}Set: Set<${entityName}>): Set<${entityName}DTO>
-
-    fun toEntity(${entityNameLower}DTO: ${entityName}DTO): ${entityName}
-
-    fun toEntity(dtoList: List<${entityName}DTO>): List<${entityName}>
-
-    fun toEntity(dtoSet: Set<${entityName}DTO>): Set<${entityName}>
 
     /**
-     * Convert a page of entities to a page of DTOs
+     * Convert entity to DTO
+     * @param entity the entity to convert
+     * @return the DTO
      */
-    fun toDto(page: Page<${entityName}>): Page<${entityName}DTO> =
+    fun toDto(entity: ${entityName}): ${dtoName}
+
+    /**
+     * Convert list of entities to list of DTOs
+     * @param entityList the list of entities
+     * @return the list of DTOs
+     */
+    fun toDto(entityList: List<${entityName}>): List<${dtoName}>
+
+    /**
+     * Convert set of entities to set of DTOs
+     * @param entitySet the set of entities
+     * @return the set of DTOs
+     */
+    fun toDto(entitySet: Set<${entityName}>): Set<${dtoName}>
+
+    /**
+     * Convert DTO to entity
+     * @param entityDTO the DTO to convert
+     * @return the entity
+     */
+    fun toEntity(entityDTO: ${dtoName}): ${entityName}
+
+    /**
+     * Convert list of DTOs to list of entities
+     * @param dtoList the list of DTOs
+     * @return the list of entities
+     */
+    fun toEntity(dtoList: List<${dtoName}>): List<${entityName}>
+
+    /**
+     * Convert set of DTOs to set of entities
+     * @param dtoSet the set of DTOs
+     * @return the set of entities
+     */
+    fun toEntity(dtoSet: Set<${dtoName}>): Set<${entityName}>
+
+    /**
+     * Convert page of entities to page of DTOs
+     * @param page the page of entities
+     * @return the page of DTOs
+     */
+    fun toDto(page: Page<${entityName}>): Page<${dtoName}> =
         page.map { toDto(it) }
 
     /**
      * Partial update method
+     * @param entity the entity to update
+     * @param dto the DTO with new values
      */
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    fun partialUpdate(@MappingTarget entity: ${entityName}, dto: ${entityName}DTO)
+    fun partialUpdate(@MappingTarget entity: ${entityName}, dto: ${dtoName})
 
 <#if customMethods?? && customMethods != "">
 ${customMethods}
