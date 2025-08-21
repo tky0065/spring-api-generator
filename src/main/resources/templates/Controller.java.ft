@@ -2,11 +2,13 @@ package ${packageName};
 
 import ${dtoPackage}.${entityName}DTO;
 import ${servicePackage}.${entityName}Service;
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+</#if>
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -27,7 +29,9 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/${entityApiPath}")
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
 @Tag(name = "${entityName}s", description = "The ${entityName} API")
+</#if>
 public class ${controllerName} {
 
     private final Logger log = LoggerFactory.getLogger(${controllerName}.class);
@@ -49,6 +53,7 @@ public class ${controllerName} {
      * @throws URISyntaxException if the Location URI syntax is incorrect.
      */
     @PostMapping
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
     @Operation(
         summary = "Create a new ${entityNameLower}", description = "Create a new ${entityNameLower}"
     )
@@ -60,6 +65,7 @@ public class ${controllerName} {
         responseCode = "400", description = "Invalid input"
     )
     })
+</#if>
     public ResponseEntity<${dtoName}> create${entityName}(@Valid @RequestBody ${dtoName} ${entityNameLower}DTO) throws URISyntaxException {
         log.debug("REST request to save ${entityName} : {}", ${entityNameLower}DTO);
         if (${entityNameLower}DTO.getId() != null) {
@@ -81,6 +87,7 @@ public class ${controllerName} {
      * or with status {@code 500 (Internal Server Error)} if the ${entityNameLower}DTO couldn't be updated.
      */
     @PutMapping("/{id}")
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
     @Operation(
         summary = "Update a ${entityNameLower}", description = "Update an existing ${entityNameLower}"
     )
@@ -95,10 +102,11 @@ public class ${controllerName} {
         responseCode = "404", description = "${entityName} not found"
     )
     })
+</#if>
     public ResponseEntity<${dtoName}> update${entityName}(
-        @Parameter(
+        <#if hasSwaggerDependency?? && hasSwaggerDependency>@Parameter(
         description = "ID of the ${entityNameLower} to update"
-    ) @PathVariable(value = "id", required = false) final Long id,
+    ) </#if>@PathVariable(value = "id", required = false) final Long id,
         @Valid @RequestBody ${dtoName} ${entityNameLower}DTO
     ) {
         log.debug("REST request to update ${entityName} : {}, {}", id, ${entityNameLower}DTO);
@@ -130,13 +138,15 @@ public class ${controllerName} {
     @PatchMapping(
         value = "/{id}", consumes = { "application/json", "application/merge-patch+json" }
     )
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
     @Operation(
         summary = "Partially update a ${entityNameLower}", description = "Partially update an existing ${entityNameLower}"
     )
+</#if>
     public ResponseEntity<${dtoName}> partialUpdate${entityName}(
-        @Parameter(
+        <#if hasSwaggerDependency?? && hasSwaggerDependency>@Parameter(
         description = "ID of the ${entityNameLower} to update"
-    ) @PathVariable(value = "id", required = false) final Long id,
+    ) </#if>@PathVariable(value = "id", required = false) final Long id,
         @RequestBody ${dtoName} ${entityNameLower}DTO
     ) {
         log.debug("REST request to partial update ${entityName} partially : {}, {}", id, ${entityNameLower}DTO);
@@ -165,13 +175,15 @@ public class ${controllerName} {
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of ${entityNameLower}s in body.
      */
     @GetMapping
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
     @Operation(
         summary = "Get all ${entityNameLower}s", description = "Get all ${entityNameLower}s with pagination"
     )
     @ApiResponse(
         responseCode = "200", description = "Successful operation"
     )
-    public ResponseEntity<List<${dtoName}>> getAll${entityName}s(@Parameter(hidden = true) Pageable pageable) {
+</#if>
+    public ResponseEntity<List<${dtoName}>> getAll${entityName}s(<#if hasSwaggerDependency?? && hasSwaggerDependency>@Parameter(hidden = true) </#if>Pageable pageable) {
         log.debug("REST request to get a page of ${entityName}s");
         Page<${dtoName}> page = ${serviceVarName}.findAll(pageable);
         return ResponseEntity.ok().body(page.getContent());
@@ -184,6 +196,7 @@ public class ${controllerName} {
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the ${entityNameLower}DTO, or with status {@code 404 (Not Found)}.
      */
     @GetMapping("/{id}")
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
     @Operation(
         summary = "Get a ${entityNameLower} by ID", description = "Get a specific ${entityNameLower} by its ID"
     )
@@ -195,9 +208,10 @@ public class ${controllerName} {
         responseCode = "404", description = "${entityName} not found"
     )
     })
-    public ResponseEntity<${dtoName}> get${entityName}(@Parameter(
+</#if>
+    public ResponseEntity<${dtoName}> get${entityName}(<#if hasSwaggerDependency?? && hasSwaggerDependency>@Parameter(
         description = "ID of the ${entityNameLower} to retrieve"
-    ) @PathVariable Long id) {
+    ) </#if>@PathVariable Long id) {
         log.debug("REST request to get ${entityName} : {}", id);
         Optional<${dtoName}> ${entityNameLower}DTO = ${serviceVarName}.findOne(id);
         return ${entityNameLower}DTO
@@ -212,6 +226,7 @@ public class ${controllerName} {
      * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
      */
     @DeleteMapping("/{id}")
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
     @Operation(
         summary = "Delete a ${entityNameLower}", description = "Delete a ${entityNameLower} by its ID"
     )
@@ -223,9 +238,10 @@ public class ${controllerName} {
         responseCode = "404", description = "${entityName} not found"
     )
     })
-    public ResponseEntity<Void> delete${entityName}(@Parameter(
+</#if>
+    public ResponseEntity<Void> delete${entityName}(<#if hasSwaggerDependency?? && hasSwaggerDependency>@Parameter(
         description = "ID of the ${entityNameLower} to delete"
-    ) @PathVariable Long id) {
+    ) </#if>@PathVariable Long id) {
         log.debug("REST request to delete ${entityName} : {}", id);
         ${serviceVarName}.delete(id);
         return ResponseEntity.noContent().build();

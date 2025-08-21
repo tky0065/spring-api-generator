@@ -2,12 +2,14 @@ package ${packageName};
 
 import ${domainPackage}.${entityName};
 import ${dtoPackage}.${dtoName};
+<#if hasMapStructDependency?? && hasMapStructDependency>
 import org.mapstruct.BeanMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.NullValuePropertyMappingStrategy;
 import org.mapstruct.ReportingPolicy;
+</#if>
 import org.springframework.data.domain.Page;
 import java.util.List;
 import java.util.Set;
@@ -18,7 +20,9 @@ ${additionalImports}
 /**
  * Mapper for the entity {@link ${entityName}} and its DTO {@link ${dtoName}}.
  */
+<#if hasMapStructDependency?? && hasMapStructDependency>
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+</#if>
 public interface ${mapperName} {
 
 <#if mappings?has_content>
@@ -82,8 +86,8 @@ public interface ${mapperName} {
      * @param entity the entity to update
      * @param dto the DTO with new values
      */
-    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    void partialUpdate(@MappingTarget ${entityName} entity, ${dtoName} dto);
+    <#if hasMapStructDependency?? && hasMapStructDependency>@BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    </#if>void partialUpdate(<#if hasMapStructDependency?? && hasMapStructDependency>@MappingTarget </#if>${entityName} entity, ${dtoName} dto);
 
 <#if customMethods?? && customMethods != "">
 ${customMethods}

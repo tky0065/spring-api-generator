@@ -5,7 +5,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+<#if hasValidationDependency?? && hasValidationDependency>
 import jakarta.validation.constraints.*;
+</#if>
 <#if additionalImports?? && additionalImports != "">
 ${additionalImports}
 </#if>
@@ -24,8 +26,8 @@ public class ${dtoName} implements Serializable {
 <#if javaFields?? && javaFields != "">
 ${javaFields}
 <#else>
-    @NotNull
-    private ${idType} id;
+    <#if hasValidationDependency?? && hasValidationDependency>@NotNull
+    </#if>private ${idType} id;
 
     // Add other basic fields here if needed
 </#if>

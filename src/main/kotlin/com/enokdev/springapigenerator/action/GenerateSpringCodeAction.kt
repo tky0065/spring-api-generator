@@ -9,6 +9,8 @@ import com.enokdev.springapigenerator.ui.LanguageSelectionDialog
 import com.enokdev.springapigenerator.util.TemplateAnnotationFixer
 import com.enokdev.springapigenerator.util.AnnotationInjector
 import com.enokdev.springapigenerator.util.ForceAnnotationInjector
+import com.enokdev.springapigenerator.util.BuildSystemHelper
+import com.enokdev.springapigenerator.service.DependencyValidationService
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -265,9 +267,23 @@ class GenerateSpringCodeAction : AnAction() {
     ) {
         WriteCommandAction.runWriteCommandAction(project) {
             try {
-                // Create enhanced package configuration with custom query methods setting
+                // Create enhanced package configuration with custom query methods setting and feature flags
                 val enhancedPackageConfig = packageConfig.toMutableMap()
                 enhancedPackageConfig["generateCustomQueryMethods"] = dialog.shouldGenerateCustomQueryMethods().toString()
+                
+                // Add feature flags to package configuration so templates can use them
+                enhancedPackageConfig["enableSwagger"] = dialog.shouldAddSwagger().toString()
+                enhancedPackageConfig["enableSecurity"] = dialog.shouldAddSpringSecurity().toString()
+                enhancedPackageConfig["enableGraphQL"] = dialog.shouldAddGraphQL().toString()
+                enhancedPackageConfig["enableOpenApi"] = dialog.shouldAddOpenApi().toString()
+                enhancedPackageConfig["enableMapstruct"] = dialog.shouldAddMapstruct().toString()
+                
+                // Also add this to help with conditional template logic
+                enhancedPackageConfig["hasValidationDependency"] = selectedComponents.contains("dto").toString()
+                enhancedPackageConfig["hasSwaggerDependency"] = dialog.shouldAddSwagger().toString()
+                enhancedPackageConfig["hasSecurityDependency"] = dialog.shouldAddSpringSecurity().toString()
+                enhancedPackageConfig["hasGraphQLDependency"] = dialog.shouldAddGraphQL().toString()
+                enhancedPackageConfig["hasMapStructDependency"] = dialog.shouldAddMapstruct().toString()
 
                 // Create generators based on selected components and dialog configuration
                 val generators = createGenerators(selectedComponents, dialog)
@@ -609,31 +625,92 @@ class GenerateSpringCodeAction : AnAction() {
      * Handles dependencies and advanced features based on dialog configuration.
      */
     private fun handleDependencies(project: Project, dialog: GeneratorConfigDialog) {
-        // Add MapStruct dependency if needed
+        // Create features map based on dialog selections
+        val selectedFeatures = mutableMapOf<String, Boolean>()
+        
+        // Map dialog selections to feature keys expected by dependency services
+        if (dialog.shouldAddMapstruct()) {
+            selectedFeatures["mapstruct"] = true
+        }
+        if (dialog.shouldAddSwagger()) {
+            selectedFeatures["swagger"] = true
+        }
+        if (dialog.shouldAddSpringSecurity()) {
+            selectedFeatures["security"] = true
+        }
+        if (dialog.shouldAddGraphQL()) {
+            selectedFeatures["graphql"] = true
+        }
+        if (dialog.shouldAddOpenApi()) {
+            selectedFeatures["openapi"] = true
+        }
+        
+        // Always check for validation dependency when DTOs are generated
+        val selectedComponents = dialog.getSelectedComponents()
+        if (selectedComponents.contains("dto")) {
+            selectedFeatures["validation"] = true
+        }
+        
+        try {
+            // Use existing BuildSystemHelper to automatically add required dependencies
+            BuildSystemHelper.ensureRequiredDependencies(project, selectedFeatures)
+            
+            // Use DependencyValidationService to add any missing dependencies
+            val dependencyService = DependencyValidationService()
+            val addedDependencies = dependencyService.addMissingDependencies(project, selectedFeatures)
+            
+            // Show success message if dependencies were added
+            if (addedDependencies.isNotEmpty()) {
+                showDependencySuccessMessage(project, addedDependencies)
+            }
+            
+        } catch (e: Exception) {
+            // Fall back to showing dependency info if automatic addition fails
+            showDependencyFallback(project, dialog, e)
+        }
+    }
+
+    /**
+     * Shows success message when dependencies are automatically added.
+     */
+    private fun showDependencySuccessMessage(project: Project, addedDependencies: List<String>) {
+        val dependencyList = addedDependencies.joinToString("\n") { "• $it" }
+        Messages.showInfoMessage(
+            project,
+            "Successfully added the following dependencies:\n\n$dependencyList\n\nDependencies have been automatically added to your build file.",
+            "Dependencies Added"
+        )
+    }
+
+    /**
+     * Falls back to showing dependency info if automatic addition fails.
+     */
+    private fun showDependencyFallback(project: Project, dialog: GeneratorConfigDialog, error: Exception) {
+        // Log the error for debugging
+        com.intellij.openapi.diagnostic.Logger.getInstance(this::class.java)
+            .warn("Failed to automatically add dependencies: ${error.message}")
+        
+        // Fall back to original behavior - show manual dependency instructions
         if (dialog.shouldAddMapstruct()) {
             val (buildSystem, dependency) = dialog.getMapstructDependencyInfo()
             showDependencyInfo(project, "MapStruct", buildSystem, dependency)
         }
 
-        // Add Swagger dependency if needed
         if (dialog.shouldAddSwagger()) {
             val (buildSystem, dependency) = dialog.getSwaggerDependencyInfo()
             showDependencyInfo(project, "Swagger/OpenAPI", buildSystem, dependency)
         }
 
-        // Add Spring Security dependency if needed
         if (dialog.shouldAddSpringSecurity()) {
             val (buildSystem, dependency) = dialog.getSpringSecurityDependencyInfo()
             showDependencyInfo(project, "Spring Security", buildSystem, dependency)
         }
 
-        // Add GraphQL dependency if needed
         if (dialog.shouldAddGraphQL()) {
             val (buildSystem, dependency) = dialog.getGraphQLDependencyInfo()
             showDependencyInfo(project, "GraphQL", buildSystem, dependency)
         }
 
-        // Add OpenAPI dependency if needed
         if (dialog.shouldAddOpenApi()) {
             val (buildSystem, dependency) = dialog.getOpenApiDependencyInfo()
             showDependencyInfo(project, "OpenAPI 3.0", buildSystem, dependency)

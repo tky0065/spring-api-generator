@@ -2,11 +2,13 @@ package ${packageName}
 
 import ${dtoPackage}.${entityName}DTO
 import ${servicePackage}.${entityName}Service
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+</#if>
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -25,7 +27,9 @@ import java.util.*
 <#else>
 @RequestMapping("/api/${entityName?lower_case}")
 </#if>
+<#if hasSwaggerDependency?? && hasSwaggerDependency>
 @Tag(name = "${entityName}s", description = "The ${entityName} API")
+</#if>
 class ${controllerName}(private val ${serviceVarName}: ${serviceName}) {
 
     private val log = LoggerFactory.getLogger(${controllerName}::class.java)
