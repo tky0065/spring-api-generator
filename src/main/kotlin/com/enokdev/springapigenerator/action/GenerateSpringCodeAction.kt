@@ -267,9 +267,23 @@ class GenerateSpringCodeAction : AnAction() {
     ) {
         WriteCommandAction.runWriteCommandAction(project) {
             try {
-                // Create enhanced package configuration with custom query methods setting
+                // Create enhanced package configuration with custom query methods setting and feature flags
                 val enhancedPackageConfig = packageConfig.toMutableMap()
                 enhancedPackageConfig["generateCustomQueryMethods"] = dialog.shouldGenerateCustomQueryMethods().toString()
+                
+                // Add feature flags to package configuration so templates can use them
+                enhancedPackageConfig["enableSwagger"] = dialog.shouldAddSwagger().toString()
+                enhancedPackageConfig["enableSecurity"] = dialog.shouldAddSpringSecurity().toString()
+                enhancedPackageConfig["enableGraphQL"] = dialog.shouldAddGraphQL().toString()
+                enhancedPackageConfig["enableOpenApi"] = dialog.shouldAddOpenApi().toString()
+                enhancedPackageConfig["enableMapstruct"] = dialog.shouldAddMapstruct().toString()
+                
+                // Also add this to help with conditional template logic
+                enhancedPackageConfig["hasValidationDependency"] = selectedComponents.contains("dto").toString()
+                enhancedPackageConfig["hasSwaggerDependency"] = dialog.shouldAddSwagger().toString()
+                enhancedPackageConfig["hasSecurityDependency"] = dialog.shouldAddSpringSecurity().toString()
+                enhancedPackageConfig["hasGraphQLDependency"] = dialog.shouldAddGraphQL().toString()
+                enhancedPackageConfig["hasMapStructDependency"] = dialog.shouldAddMapstruct().toString()
 
                 // Create generators based on selected components and dialog configuration
                 val generators = createGenerators(selectedComponents, dialog)

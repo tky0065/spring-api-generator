@@ -324,12 +324,24 @@ abstract class AbstractTemplateCodeGenerator : CodeGenerator {
     protected open fun createDataModel(entityMetadata: EntityMetadata, packageConfig: Map<String, String>, project: Project): MutableMap<String, Any> {
         val model = createDataModel(entityMetadata, packageConfig)
 
-        // Add dependency validation information
-        model["hasValidationDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "validation")
-        model["hasSwaggerDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "swagger")
-        model["hasSecurityDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "security")
-        model["hasGraphQLDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "graphql")
-        model["hasMapStructDependency"] = com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "mapstruct")
+        // Add dependency validation information - prioritize user selections from packageConfig
+        model["hasValidationDependency"] = packageConfig["hasValidationDependency"]?.toBoolean()
+            ?: com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "validation")
+        model["hasSwaggerDependency"] = packageConfig["hasSwaggerDependency"]?.toBoolean()
+            ?: com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "swagger")
+        model["hasSecurityDependency"] = packageConfig["hasSecurityDependency"]?.toBoolean()
+            ?: com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "security")
+        model["hasGraphQLDependency"] = packageConfig["hasGraphQLDependency"]?.toBoolean()
+            ?: com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "graphql")
+        model["hasMapStructDependency"] = packageConfig["hasMapStructDependency"]?.toBoolean()
+            ?: com.enokdev.springapigenerator.service.DependencyValidationService.hasRequiredDependencies(project, "mapstruct")
+
+        // Also add the enable flags for templates that prefer that naming
+        model["enableSwagger"] = model["hasSwaggerDependency"]
+        model["enableSecurity"] = model["hasSecurityDependency"]
+        model["enableGraphQL"] = model["hasGraphQLDependency"]
+        model["enableOpenApi"] = packageConfig["enableOpenApi"]?.toBoolean() ?: false
+        model["enableMapstruct"] = model["hasMapStructDependency"]
 
         return model
     }
