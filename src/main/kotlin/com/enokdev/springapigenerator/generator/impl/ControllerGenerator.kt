@@ -33,9 +33,9 @@ class ControllerGenerator : AbstractTemplateCodeGenerator() {
         entityMetadata: EntityMetadata,
         packageConfig: Map<String, String>
     ): String {
-        // Vérifier et ajouter les dépendances requises si nécessaire
+        // Create features map with only validation enabled by default
+        // Swagger and other features should be determined by user selection, not hardcoded
         val features = mapOf(
-            "swagger" to true,
             "validation" to true
         )
         DependencyValidationService.validateAndEnsureDependencies(project, features)
